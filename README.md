@@ -17,10 +17,10 @@ State is held in `localStorage` for now — there's no backend, payments, or on-
 These are static files. Serve the folder over HTTP:
 
 ```
-python3 -m http.server 8017
+python3 -m http.server 7228
 ```
 
-Then open <http://localhost:8017/>.
+Then open <http://localhost:7228/> (7228 = "PACT" on a phone keypad).
 
 ## Outstanding tasks
 
