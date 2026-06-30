@@ -147,6 +147,10 @@ let forceLightChart = false;
 let curveState = null;
 let connectedWallet = null;
 
+function updateCreateButton() {
+  $('createBtn').textContent = connectedWallet ? 'Create issuance' : 'Connect to create';
+}
+
 // floating error tooltip — shows a field's message on hover while it's in an error state
 const errTip = document.createElement('div');
 errTip.className = 'err-tip';
@@ -435,6 +439,7 @@ PactWallet.init({
   buttonId: 'walletToggle',
   onChange: account => {
     connectedWallet = account;
+    updateCreateButton();
     $('formError').classList.add('hidden');
   },
   onError: err => {
@@ -443,6 +448,7 @@ PactWallet.init({
     fe.classList.remove('hidden');
   },
 });
+updateCreateButton();
 
 // print the chart in the light palette regardless of on-screen theme
 window.addEventListener('beforeprint', () => { forceLightChart = true; compute(); });

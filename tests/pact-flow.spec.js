@@ -24,6 +24,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   const page = await issuer.newPage();
 
   await page.goto('/');
+  await expect(page.locator('#createBtn')).toHaveText('Connect to create');
   await page.locator('#projectName').fill('Cross Context PACT');
   await page.locator('#proceeds').fill(addr(1));
   await page.locator('input[data-k="name"]').nth(0).fill(addr(2));
@@ -32,6 +33,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(page.locator('#formError')).toContainText('Connect a wallet');
   await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
+  await expect(page.locator('#createBtn')).toHaveText('Create issuance');
   await page.locator('#createBtn').click();
   await expect(page).toHaveURL(/status\.html\?id=r/);
   await expect(page.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
