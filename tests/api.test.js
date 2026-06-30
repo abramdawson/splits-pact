@@ -20,6 +20,7 @@ function fixtureRaise() {
     maximum: { reclaimUnsoldBy: 'project-treasury' },
     maxDilutionPct: 20,
     proceedsAddress: '0x0000000000000000000000000000000000000001',
+    issuerWallet: '0x0000000000000000000000000000000000000009',
     valuation: {
       effectiveCap: 50000,
       bandPct: 20,
@@ -67,9 +68,10 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
     assert.equal(added.body.allocation.status, 'allocated');
 
     const allocationId = added.body.allocation.id;
-    const funded = setAllocationFunded(db, raiseId, allocationId, true);
+    const funded = setAllocationFunded(db, raiseId, allocationId, true, { buyerWallet: '0x0000000000000000000000000000000000000008' });
     assert.equal(funded.status, 200);
     assert.equal(funded.body.allocation.status, 'funded');
+    assert.equal(funded.body.allocation.buyerWallet, '0x0000000000000000000000000000000000000008');
     assert.ok(funded.body.allocation.fundedAt);
 
     const unfunded = setAllocationFunded(db, raiseId, allocationId, false);

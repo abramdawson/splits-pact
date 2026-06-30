@@ -24,11 +24,14 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <button id="fontToggle" class="font-toggle" aria-label="Toggle font">Aa</button>
-  <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle light / dark">
-    <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-  </button>
+  <div class="top-controls">
+    <button id="walletToggle" class="wallet-toggle" type="button">Connect wallet</button>
+    <button id="fontToggle" class="font-toggle" aria-label="Toggle font">Aa</button>
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle light / dark">
+      <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </div>
 
   <div class="min-h-screen flex justify-center items-start py-12 px-4">
     <div class="paper w-full max-w-[820px] px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]">
@@ -133,6 +136,7 @@
 
 <script src="chart.js"></script>
 <script src="api.js"></script>
+<script src="wallet.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const projectNameEl = $('projectName');
@@ -141,6 +145,7 @@ const dilEl = $('dilution'), spreadEl = $('spread'), proceedsEl = $('proceeds');
 const isAddress = s => /^0x[a-fA-F0-9]{40}$/.test(String(s).trim());
 let forceLightChart = false;
 let curveState = null;
+let connectedWallet = null;
 
 // floating error tooltip — shows a field's message on hover while it's in an error state
 const errTip = document.createElement('div');
@@ -317,6 +322,7 @@ function validate() {
   const mark = (el, msg) => { if (el) { el.classList.add('error'); el.setAttribute('data-error', msg); } };
   let n = 0;
 
+  if (!connectedWallet) n++;
   if (!projectNameEl.value.trim()) { mark(projectNameEl, 'Enter a project name.'); n++; }
   const rmin = parseMoney(raiseMinEl.value);
   const rmax = parseMoney(raiseMaxEl.value);
@@ -352,6 +358,7 @@ function buildIssuance() {
     projectName: projectNameEl.value.trim(),
     raise: { min: rmin, max: rmax },
     minimum: { deadlineDays: +daysEl.value, refundIfUnmet: 'burn-tokens-for-full-purchase-amount' },
+    issuerWallet: connectedWallet,
     maximum: { reclaimUnsoldBy: 'project-treasury' },
     maxDilutionPct: +dilEl.value,
     proceedsAddress: proceedsEl.value.trim(),
@@ -386,7 +393,7 @@ async function saveIssuance(data) {
 $('createBtn').addEventListener('click', async () => {
   if (!validate().ok) {
     const fe = $('formError');
-    fe.textContent = 'Please correct the highlighted fields — hover for details.';
+    fe.textContent = connectedWallet ? 'Please correct the highlighted fields — hover for details.' : 'Connect a wallet before creating an issuance.';
     fe.classList.remove('hidden');
     return;
   }
@@ -422,6 +429,19 @@ $('fontToggle').addEventListener('click', () => {
   try { localStorage.setItem('bc-font', next); } catch (e) {}
   applyFontTitle();
   compute(); // redraw chart in the new font
+});
+
+PactWallet.init({
+  buttonId: 'walletToggle',
+  onChange: account => {
+    connectedWallet = account;
+    $('formError').classList.add('hidden');
+  },
+  onError: err => {
+    const fe = $('formError');
+    fe.textContent = err.message || 'Could not connect wallet.';
+    fe.classList.remove('hidden');
+  },
 });
 
 // print the chart in the light palette regardless of on-screen theme

@@ -32,9 +32,10 @@
         method: 'DELETE',
       });
     },
-    fundAllocation(raiseId, allocationId) {
+    fundAllocation(raiseId, allocationId, buyerWallet) {
       return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations/' + encodeURIComponent(allocationId) + '/fund', {
         method: 'POST',
+        body: JSON.stringify({ buyerWallet }),
       });
     },
     unfundAllocation(raiseId, allocationId) {
@@ -44,4 +45,3 @@
     },
   };
 })();
-

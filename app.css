@@ -95,11 +95,14 @@ body { font-family: var(--font); background: var(--page-bg); color: var(--ink); 
 .badge.funded { color: var(--ok); }
 .badge.allocated { color: var(--pending); }
 
-/* theme toggle */
-.theme-toggle { position: fixed; top: 16px; right: 16px; z-index: 10; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: var(--paper); border: 1px solid var(--paper-border); color: var(--ink); cursor: pointer; transition: background-color 120ms ease; }
-.theme-toggle:hover { background: var(--row-hover); }
-.font-toggle { position: fixed; top: 16px; right: 60px; z-index: 10; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background: var(--paper); border: 1px solid var(--paper-border); color: var(--ink); cursor: pointer; transition: background-color 120ms ease; font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1; }
-.font-toggle:hover { background: var(--row-hover); }
+/* top controls */
+.top-controls { position: fixed; top: 16px; right: 16px; z-index: 10; display: flex; align-items: center; gap: 8px; }
+.theme-toggle, .font-toggle, .wallet-toggle { height: 36px; display: flex; align-items: center; justify-content: center; background: var(--paper); border: 1px solid var(--paper-border); color: var(--ink); cursor: pointer; transition: background-color 120ms ease; font-family: var(--font); }
+.theme-toggle:hover, .font-toggle:hover, .wallet-toggle:hover { background: var(--row-hover); }
+.theme-toggle, .font-toggle { width: 36px; }
+.font-toggle { font-size: 15px; font-weight: 600; line-height: 1; }
+.wallet-toggle { min-width: 122px; padding: 0 12px; font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; }
+.wallet-toggle.connected { color: var(--ok); }
 .icon-sun { display: none; }
 html.dark .icon-moon { display: none; }
 html.dark .icon-sun { display: block; }
@@ -115,7 +118,7 @@ html.dark .icon-sun { display: block; }
     --del: #999; --danger: #b00020; --danger-bg: #fff;
   }
   body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .theme-toggle, #ctaRow, .no-print { display: none !important; }
+  .top-controls, #ctaRow, .no-print { display: none !important; }
   .min-h-screen { min-height: 0 !important; display: block !important; padding: 0 !important; }
   .paper { box-shadow: none !important; border: none !important; width: 100% !important; max-width: none !important; padding: 0 !important; font-size: 11px !important; line-height: 1.45 !important; }
   .paper > div:first-of-type { margin-bottom: 14px !important; }

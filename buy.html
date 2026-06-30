@@ -23,16 +23,19 @@
 <link rel="stylesheet" href="app.css">
 <style>
   .notice { border: 1px dotted var(--line-dotted); padding: 16px; text-align: center; }
-  .debug-toggle { position: fixed; top: 16px; right: 104px; z-index: 10; height: 36px; display: flex; align-items: center; font-family: inherit; font-size: 11px; color: var(--muted); background: var(--paper); border: 1px dashed var(--line-dotted); padding: 0 10px; cursor: pointer; }
+  .debug-toggle { position: fixed; top: 60px; right: 16px; z-index: 10; height: 36px; display: flex; align-items: center; font-family: inherit; font-size: 11px; color: var(--muted); background: var(--paper); border: 1px dashed var(--line-dotted); padding: 0 10px; cursor: pointer; }
   .debug-toggle:hover { color: var(--ink); }
 </style>
 </head>
 <body>
-  <button id="fontToggle" class="font-toggle" aria-label="Toggle font">Aa</button>
-  <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle light / dark">
-    <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-  </button>
+  <div class="top-controls">
+    <button id="walletToggle" class="wallet-toggle" type="button">Connect wallet</button>
+    <button id="fontToggle" class="font-toggle" aria-label="Toggle font">Aa</button>
+    <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme" title="Toggle light / dark">
+      <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </div>
   <button id="debugToggle" class="debug-toggle">debug</button>
 
   <div class="min-h-screen flex justify-center items-start py-12 px-4">
@@ -42,6 +45,7 @@
   </div>
 
 <script src="api.js"></script>
+<script src="wallet.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const app = $('app');
@@ -49,6 +53,7 @@ const params = new URLSearchParams(location.search);
 const raiseId = params.get('r'), allocId = params.get('a');
 const TOTAL_SHARES = 1000;
 let currentRaise = null;
+let connectedWallet = null;
 
 const fmtMoney = n => '$' + Math.round(n).toLocaleString('en-US');
 const fmtTokens = n => Math.round(n).toLocaleString('en-US');
@@ -146,6 +151,8 @@ function render() {
     action = '';
   } else if (raiseClosed) {
     action = `<div class="notice mb-8">This offering has closed. No further buy-ins can be made.</div>`;
+  } else if (!connectedWallet) {
+    action = `<div class="notice mb-8">Connect a wallet before purchasing this offering.</div>`;
   } else {
     action = `<div class="flex justify-end mb-8"><button class="cta px-6 py-3 text-[14px] font-semibold" data-act="pay">Purchase ${esc(r.projectName)}</button></div>`;
   }
@@ -158,11 +165,15 @@ function render() {
 
 app.addEventListener('click', async e => {
   if (!e.target.closest('[data-act="pay"]')) return;
+  if (!connectedWallet) {
+    notice('Wallet required', 'Connect a wallet before purchasing this offering.');
+    return;
+  }
   const r = currentRaise;
   const a = r && (r.allocations || []).find(x => x.id === allocId);
   if (!a) return;
   try {
-    const result = await PactAPI.fundAllocation(r.id, a.id);
+    const result = await PactAPI.fundAllocation(r.id, a.id, connectedWallet);
     currentRaise = result.raise;
     render();
   } catch (err) {
@@ -177,7 +188,7 @@ if (['localhost', '127.0.0.1'].includes(location.hostname)) {
     const r = currentRaise;
     const a = r && (r.allocations || []).find(x => x.id === allocId);
     if (!a) return;
-    const req = a.status === 'funded' ? PactAPI.unfundAllocation(r.id, a.id) : PactAPI.fundAllocation(r.id, a.id);
+    const req = a.status === 'funded' ? PactAPI.unfundAllocation(r.id, a.id) : PactAPI.fundAllocation(r.id, a.id, connectedWallet);
     req.then(result => { currentRaise = result.raise; render(); })
       .catch(err => notice('Debug update failed', esc(err.message || 'Could not update allocation.')));
   });
@@ -204,6 +215,14 @@ $('fontToggle').addEventListener('click', () => {
   render();
 });
 
+PactWallet.init({
+  buttonId: 'walletToggle',
+  onChange: account => {
+    connectedWallet = account;
+    render();
+  },
+  onError: err => notice('Wallet unavailable', esc(err.message || 'Could not connect wallet.')),
+});
 loadRaise();
 </script>
 <script>
