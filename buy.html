@@ -41,12 +41,14 @@
     </div>
   </div>
 
+<script src="api.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const app = $('app');
 const params = new URLSearchParams(location.search);
 const raiseId = params.get('r'), allocId = params.get('a');
 const TOTAL_SHARES = 1000;
+let currentRaise = null;
 
 const fmtMoney = n => '$' + Math.round(n).toLocaleString('en-US');
 const fmtTokens = n => Math.round(n).toLocaleString('en-US');
@@ -56,8 +58,19 @@ const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { month: 'short
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
 
-const loadStore = () => JSON.parse(localStorage.getItem('pact-raises') || '{}');
-function saveRaise(r) { const store = loadStore(); store[r.id] = r; localStorage.setItem('pact-raises', JSON.stringify(store)); }
+async function loadRaise() {
+  if (!raiseId) {
+    currentRaise = null;
+    render();
+    return;
+  }
+  try {
+    currentRaise = await PactAPI.getRaise(raiseId);
+  } catch (err) {
+    currentRaise = null;
+  }
+  render();
+}
 
 function fractionAt(r, R) {
   const cap = r.valuation.effectiveCap, vMin = r.valuation.floor, vMax = r.valuation.ceiling;
@@ -86,7 +99,7 @@ function notice(title, body) {
 }
 
 function render() {
-  const r = loadStore()[raiseId];
+  const r = currentRaise;
   if (!r) return notice('Link not found', 'This buy-in link doesn’t match any known offering.');
   const a = (r.allocations || []).find(x => x.id === allocId);
   if (!a) return notice('Link not found', 'This allocation no longer exists — the project may have removed it.');
@@ -143,28 +156,30 @@ function render() {
   if (dbgBtn) dbgBtn.textContent = isPaid ? 'debug · mark unpaid' : 'debug · mark paid';
 }
 
-app.addEventListener('click', e => {
+app.addEventListener('click', async e => {
   if (!e.target.closest('[data-act="pay"]')) return;
-  const r = loadStore()[raiseId];
+  const r = currentRaise;
   const a = r && (r.allocations || []).find(x => x.id === allocId);
   if (!a) return;
-  a.status = 'funded';
-  a.fundedAt = Date.now();
-  saveRaise(r);
-  render();
+  try {
+    const result = await PactAPI.fundAllocation(r.id, a.id);
+    currentRaise = result.raise;
+    render();
+  } catch (err) {
+    notice('Purchase failed', esc(err.message || 'Could not complete purchase.'));
+  }
 });
 
 // dev-only: flip this allocation between unpaid and paid
 const dbg = $('debugToggle');
 if (['localhost', '127.0.0.1'].includes(location.hostname)) {
   dbg.addEventListener('click', () => {
-    const r = loadStore()[raiseId];
+    const r = currentRaise;
     const a = r && (r.allocations || []).find(x => x.id === allocId);
     if (!a) return;
-    if (a.status === 'funded') { a.status = 'allocated'; delete a.fundedAt; }
-    else { a.status = 'funded'; a.fundedAt = Date.now(); }
-    saveRaise(r);
-    render();
+    const req = a.status === 'funded' ? PactAPI.unfundAllocation(r.id, a.id) : PactAPI.fundAllocation(r.id, a.id);
+    req.then(result => { currentRaise = result.raise; render(); })
+      .catch(err => notice('Debug update failed', esc(err.message || 'Could not update allocation.')));
   });
 } else {
   dbg.style.display = 'none';
@@ -189,7 +204,7 @@ $('fontToggle').addEventListener('click', () => {
   render();
 });
 
-render();
+loadRaise();
 </script>
 <script>
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {

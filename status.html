@@ -56,6 +56,7 @@
   </div>
   <div id="toast" class="toast"></div>
 
+<script src="api.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const app = $('app');
@@ -71,14 +72,22 @@ const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g,
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
 
 const raiseId = new URLSearchParams(location.search).get('id');
+let currentRaise = null;
 
-function loadStore() { return JSON.parse(localStorage.getItem('pact-raises') || '{}'); }
-function saveRaise(r) {
-  const store = loadStore();
-  store[r.id] = r;
-  localStorage.setItem('pact-raises', JSON.stringify(store));
+function getRaise() { return currentRaise; }
+async function loadRaise() {
+  if (!raiseId) {
+    currentRaise = null;
+    render();
+    return;
+  }
+  try {
+    currentRaise = await PactAPI.getRaise(raiseId);
+  } catch (err) {
+    currentRaise = null;
+  }
+  render();
 }
-function getRaise() { return loadStore()[raiseId]; }
 
 // fraction of the project sold once a cumulative $R has been raised along the curve
 function fractionAt(r, R) {
@@ -226,7 +235,7 @@ function render() {
       <div class="flex items-center gap-3">
         <input id="allocName" class="blank flex-1" placeholder="Buyer name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         <div class="flex items-center gap-1"><span class="t-muted">$</span><input id="allocAmount" class="blank w-28 text-left" inputmode="numeric" placeholder="0" autocomplete="off"></div>
-        <button class="cta px-5 text-[13px] font-semibold" data-act="add" disabled>Generate link</button>
+        <button class="cta px-5 text-[13px] font-semibold" data-act="add">Generate link</button>
       </div>
       <p id="allocError" class="hidden text-[13px] t-danger mt-2"></p>
     </div>
@@ -239,11 +248,7 @@ function render() {
 
 // delegated events (set once; survive re-renders)
 function updateAddBtn() {
-  const btn = app.querySelector('[data-act="add"]');
-  if (!btn) return;
-  const name = ($('allocName')?.value || '').trim();
-  const amount = +(($('allocAmount')?.value || '').replace(/[^0-9.]/g, '')) || 0;
-  btn.disabled = !(name && amount > 0);
+  // Allocation validity is checked when the user clicks Generate link.
 }
 
 app.addEventListener('input', e => {
@@ -254,7 +259,7 @@ app.addEventListener('input', e => {
   if (e.target.id === 'allocAmount' || e.target.id === 'allocName') updateAddBtn();
 });
 
-app.addEventListener('click', e => {
+app.addEventListener('click', async e => {
   const btn = e.target.closest('[data-act]');
   if (!btn) return;
   const act = btn.dataset.act, id = btn.dataset.id;
@@ -270,20 +275,30 @@ app.addEventListener('click', e => {
       err.classList.remove('hidden');
       return;
     }
-    const aId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-    r.allocations.push({ id: aId, name, amountUsd: amount, status: 'allocated', createdAt: Date.now() });
-    saveRaise(r);
-    render();
-    copy(buyLink(aId), 'Link copied — send it to ' + name);
+    btn.disabled = true;
+    try {
+      const result = await PactAPI.addAllocation(r.id, { name, amountUsd: amount });
+      currentRaise = result.raise;
+      render();
+      copy(buyLink(result.allocation.id), 'Link copied — send it to ' + name);
+    } catch (err2) {
+      err.textContent = err2.message || 'Could not create allocation.';
+      err.classList.remove('hidden');
+      btn.disabled = false;
+    }
     return;
   }
   if (act === 'copy') { copy(buyLink(id)); return; }
   if (act === 'del') {
     const a = r.allocations.find(x => x.id === id);
     if (a && confirm('Delete the allocation for ' + a.name + '?')) {
-      r.allocations = r.allocations.filter(x => x.id !== id);
-      saveRaise(r);
-      render();
+      try {
+        const result = await PactAPI.deleteAllocation(r.id, id);
+        currentRaise = result.raise;
+        render();
+      } catch (err) {
+        toast(err.message || 'Could not delete allocation');
+      }
     }
     return;
   }
@@ -311,7 +326,7 @@ $('fontToggle').addEventListener('click', () => {
   render(); // repaint the chart in the new font
 });
 
-render();
+loadRaise();
 </script>
 <script>
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {

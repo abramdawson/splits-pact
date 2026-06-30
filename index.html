@@ -132,6 +132,7 @@
   </div>
 
 <script src="chart.js"></script>
+<script src="api.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const projectNameEl = $('projectName');
@@ -377,25 +378,28 @@ function buildIssuance() {
   };
 }
 
-function saveIssuance(data) {
-  const id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  data.id = id;
-  data.createdAt = Date.now();
-  data.allocations = [];
-  const store = JSON.parse(localStorage.getItem('pact-raises') || '{}');
-  store[id] = data;
-  localStorage.setItem('pact-raises', JSON.stringify(store));
-  window.location.href = 'status.html?id=' + id;
+async function saveIssuance(data) {
+  const raise = await PactAPI.createRaise(data);
+  window.location.href = 'status.html?id=' + encodeURIComponent(raise.id);
 }
 
-$('createBtn').addEventListener('click', () => {
+$('createBtn').addEventListener('click', async () => {
   if (!validate().ok) {
     const fe = $('formError');
     fe.textContent = 'Please correct the highlighted fields — hover for details.';
     fe.classList.remove('hidden');
     return;
   }
-  saveIssuance(buildIssuance());
+  const btn = $('createBtn');
+  btn.disabled = true;
+  try {
+    await saveIssuance(buildIssuance());
+  } catch (err) {
+    const fe = $('formError');
+    fe.textContent = err.message || 'Could not create issuance.';
+    fe.classList.remove('hidden');
+    btn.disabled = false;
+  }
 });
 
 $('themeToggle').addEventListener('click', () => {
