@@ -116,7 +116,8 @@ body { font-family: var(--font); background: var(--page-bg); color: var(--ink); 
 .settings-label { padding: 9px 10px 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0; }
 .settings-menu button { width: 100%; height: 34px; display: flex; align-items: center; justify-content: space-between; border: 0; background: transparent; color: var(--ink); font-family: var(--font); font-size: 12px; text-align: left; padding: 0 10px; cursor: pointer; }
 .settings-menu button:hover { background: var(--row-hover); }
-.setting-check { color: var(--ok); }
+.setting-check { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto; }
+.setting-check.active { background: var(--ink); }
 
 @media print {
   @page { size: letter portrait; margin: 0.5in; }

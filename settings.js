@@ -24,7 +24,7 @@
   }
 
   function row(kind, value, label, active) {
-    return `<button type="button" data-kind="${kind}" data-value="${value}"><span>${label}</span><span class="setting-check">${active ? '✓' : ''}</span></button>`;
+    return `<button type="button" data-kind="${kind}" data-value="${value}"><span>${label}</span><span class="setting-check${active ? ' active' : ''}"></span></button>`;
   }
 
   function init(options) {
