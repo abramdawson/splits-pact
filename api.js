@@ -21,6 +21,9 @@
     getRaise(id) {
       return request('/api/raises/' + encodeURIComponent(id));
     },
+    listRaises(issuerWallet) {
+      return request('/api/raises?issuerWallet=' + encodeURIComponent(issuerWallet));
+    },
     addAllocation(raiseId, allocation) {
       return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations', {
         method: 'POST',

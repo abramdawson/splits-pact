@@ -41,6 +41,9 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(page.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
   await page.locator('#walletToggle').click();
+  await expect(page.locator('.wallet-menu')).toContainText('Your issuances');
+  await expect(page.locator('.wallet-menu')).toContainText('Cross Context PACT');
+  await expect(page.locator('.wallet-menu')).toContainText('New issuance');
   await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible();
   await page.getByRole('heading', { name: 'Cross Context PACT' }).click();
 

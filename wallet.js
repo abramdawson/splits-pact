@@ -8,6 +8,7 @@
   let status = 'idle';
   let statusTimer = null;
   let activeProvider = null;
+  let issuances = null;
   const providers = [];
 
   const short = address => address ? address.slice(0, 6) + '...' + address.slice(-4) : '';
@@ -80,12 +81,48 @@
     if (menu) menu.classList.remove('show');
   }
 
-  function toggleMenu() {
+  function currentPageIsNewIssuance() {
+    const path = location.pathname.split('/').pop();
+    return path === '' || path === 'index.html';
+  }
+
+  function renderIssuanceMenu() {
+    if (!issuances) return '<div class="wallet-menu-note">Loading issuances...</div>';
+    const rows = issuances.length
+      ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}">${raise.projectName || 'Untitled issuance'}</a>`).join('')
+      : '<div class="wallet-menu-note">No issuances yet</div>';
+    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html">New issuance</a>';
+    return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
+  }
+
+  function renderMenu() {
     if (!menu) return;
     menu.innerHTML = account
-      ? '<button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button>'
+      ? renderIssuanceMenu() + '<div class="wallet-menu-group"><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>'
       : providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
+  }
+
+  async function loadIssuances() {
+    if (!account || !window.PactAPI || !PactAPI.listRaises) {
+      issuances = [];
+      return;
+    }
+    issuances = null;
+    renderMenu();
+    try {
+      const result = await PactAPI.listRaises(account);
+      issuances = result.raises || [];
+    } catch (err) {
+      issuances = [];
+    }
+    renderMenu();
+  }
+
+  function toggleMenu() {
+    if (!menu) return;
+    renderMenu();
     menu.classList.toggle('show');
+    if (account && menu.classList.contains('show')) loadIssuances();
   }
 
   async function copyAddress(target) {

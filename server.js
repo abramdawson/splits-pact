@@ -108,6 +108,29 @@ function getRaise(db, id) {
   return { status: 200, body: raise };
 }
 
+function summarizeRaise(raise) {
+  const fundedTotal = (raise.allocations || [])
+    .filter(a => a.status === 'funded')
+    .reduce((sum, a) => sum + parseAmount(a.amountUsd), 0);
+  return {
+    id: raise.id,
+    projectName: raise.projectName,
+    createdAt: raise.createdAt,
+    raise: raise.raise,
+    fundedTotal,
+  };
+}
+
+function listRaises(db, input = {}) {
+  const issuerWallet = String(typeof input === 'string' ? input : input.issuerWallet || '').toLowerCase();
+  if (!isAddress(issuerWallet)) return { status: 400, body: { error: 'Issuer wallet is required.' } };
+  const raises = db.prepare('SELECT data FROM raises ORDER BY created_at DESC').all()
+    .map(row => JSON.parse(row.data))
+    .filter(raise => String(raise.issuerWallet || '').toLowerCase() === issuerWallet)
+    .map(summarizeRaise);
+  return { status: 200, body: { raises } };
+}
+
 function addAllocation(db, raiseId, input) {
   const raise = readRaise(db, raiseId);
   if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
@@ -182,6 +205,10 @@ function createApp(options = {}) {
     sendResult(res, createRaise(db, req.body));
   });
 
+  app.get('/api/raises', (req, res) => {
+    sendResult(res, listRaises(db, req.query));
+  });
+
   app.get('/api/raises/:id', (req, res) => {
     sendResult(res, getRaise(db, req.params.id));
   });
@@ -226,6 +253,7 @@ module.exports = {
   readRaise,
   createRaise,
   getRaise,
+  listRaises,
   addAllocation,
   deleteAllocation,
   setAllocationFunded,
