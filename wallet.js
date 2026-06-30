@@ -83,9 +83,25 @@
   function toggleMenu() {
     if (!menu) return;
     menu.innerHTML = account
-      ? '<button type="button" data-wallet-action="disconnect">Disconnect</button>'
+      ? '<button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button>'
       : providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
     menu.classList.toggle('show');
+  }
+
+  async function copyAddress(target) {
+    if (!account) return;
+    try {
+      await navigator.clipboard.writeText(account);
+      target.textContent = 'Copied';
+      setTimeout(() => {
+        if (target.isConnected) target.textContent = 'Copy address';
+      }, 1200);
+    } catch (err) {
+      target.textContent = 'Copy failed';
+      setTimeout(() => {
+        if (target.isConnected) target.textContent = 'Copy address';
+      }, 1200);
+    }
   }
 
   async function prompt() {
@@ -158,6 +174,10 @@
 
     if (menu) {
       menu.addEventListener('click', async e => {
+        if (e.target.dataset.walletAction === 'copy-address') {
+          await copyAddress(e.target);
+          return;
+        }
         if (e.target.dataset.walletAction === 'disconnect') {
           closeMenu();
           disconnect();
