@@ -4,14 +4,13 @@ const addr = n => '0x' + String(n).padStart(40, '0');
 
 async function installWallet(context, account) {
   await context.addInitScript(walletAccount => {
-    let connected = false;
     window.ethereum = {
       request: async ({ method }) => {
         if (method === 'eth_requestAccounts') {
-          connected = true;
+          localStorage.setItem('mock-wallet-connected', '1');
           return [walletAccount];
         }
-        if (method === 'eth_accounts') return connected ? [walletAccount] : [];
+        if (method === 'eth_accounts') return localStorage.getItem('mock-wallet-connected') === '1' ? [walletAccount] : [];
         throw new Error('Unsupported wallet method: ' + method);
       },
       on: () => {},
@@ -36,6 +35,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await page.locator('#createBtn').click();
   await expect(page).toHaveURL(/status\.html\?id=r/);
   await expect(page.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
+  await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
 
   await page.locator('#allocName').fill('Buyer One');
   await page.locator('#allocAmount').fill('1,500');
@@ -75,19 +75,20 @@ test('wallet button shows a visible error when no provider is available', async 
 test('wallet picker can choose among multiple announced providers', async ({ browser }) => {
   const context = await browser.newContext();
   await context.addInitScript(accounts => {
-    const makeProvider = (account, shouldReject) => ({
+    const makeProvider = (account, key, shouldReject) => ({
       request: async ({ method }) => {
         if (method === 'eth_requestAccounts') {
           if (shouldReject) throw new Error('Rejected by default wallet');
+          localStorage.setItem(key, '1');
           return [account];
         }
-        if (method === 'eth_accounts') return [];
+        if (method === 'eth_accounts') return localStorage.getItem(key) === '1' ? [account] : [];
         throw new Error('Unsupported wallet method: ' + method);
       },
       on: () => {},
     });
-    const first = makeProvider(accounts.first, true);
-    const second = makeProvider(accounts.second, false);
+    const first = makeProvider(accounts.first, 'mock-default-connected', true);
+    const second = makeProvider(accounts.second, 'mock-second-connected', false);
     window.ethereum = first;
     window.addEventListener('eip6963:requestProvider', () => {
       window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
@@ -104,6 +105,8 @@ test('wallet picker can choose among multiple announced providers', async ({ bro
   await page.locator('#walletToggle').click();
   await expect(page.getByRole('button', { name: 'Default Wallet' })).toBeVisible();
   await page.getByRole('button', { name: 'Second Wallet' }).click();
+  await expect(page.locator('#walletToggle')).toContainText('0x0000...0006');
+  await page.reload();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0006');
   await context.close();
 });

@@ -1,5 +1,6 @@
 (function () {
   const STORAGE_KEY = 'pact-wallet-disconnected';
+  const PROVIDER_KEY = 'pact-wallet-provider-id';
   let account = null;
   let button = null;
   let menu = null;
@@ -12,13 +13,15 @@
   const short = address => address ? address.slice(0, 6) + '...' + address.slice(-4) : '';
   const provider = () => activeProvider || (providers[0] && providers[0].provider) || window.ethereum;
   const providerName = item => item && item.info && item.info.name ? item.info.name : 'Browser wallet';
+  const selectedProviderId = () => localStorage.getItem(PROVIDER_KEY);
 
   function addProvider(detail) {
     if (!detail || !detail.provider) return;
     const id = detail.info && detail.info.uuid ? detail.info.uuid : providerName(detail) + '-' + providers.length;
     if (providers.some(item => item.id === id || item.provider === detail.provider)) return;
     providers.push({ id, info: detail.info || {}, provider: detail.provider });
-    if (!activeProvider) activeProvider = detail.provider;
+    if (selectedProviderId() === id || !activeProvider) activeProvider = detail.provider;
+    if (selectedProviderId() === id && localStorage.getItem(STORAGE_KEY) !== '1') restoreAccount();
     render();
   }
 
@@ -83,12 +86,22 @@
     menu.classList.toggle('show');
   }
 
-  async function connect(nextProvider) {
+  async function restoreAccount() {
+    if (!provider() || localStorage.getItem(STORAGE_KEY) === '1') return;
+    try {
+      const accounts = await provider().request({ method: 'eth_accounts' });
+      if (accounts && accounts[0]) setAccount(accounts[0]);
+    } catch (err) {}
+  }
+
+  async function connect(nextProvider, providerId) {
     if (nextProvider) activeProvider = nextProvider;
     if (!provider()) throw new Error('No wallet provider found.');
     setStatus('connecting');
     const accounts = await provider().request({ method: 'eth_requestAccounts' });
     localStorage.removeItem(STORAGE_KEY);
+    const id = providerId || (providers.find(item => item.provider === provider()) || {}).id;
+    if (id) localStorage.setItem(PROVIDER_KEY, id);
     setAccount(accounts && accounts[0]);
     return account;
   }
@@ -133,7 +146,7 @@
         if (!item) return;
         closeMenu();
         try {
-          await connect(item.provider);
+          await connect(item.provider, item.id);
         } catch (err) {
           setStatus('error');
           if (options.onError) options.onError(err);
@@ -157,10 +170,7 @@
       });
 
       if (localStorage.getItem(STORAGE_KEY) !== '1') {
-        try {
-          const accounts = await provider().request({ method: 'eth_accounts' });
-          if (accounts && accounts[0]) setAccount(accounts[0]);
-        } catch (err) {}
+        await restoreAccount();
       }
     }
 
