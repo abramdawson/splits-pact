@@ -70,7 +70,7 @@
       button.title = provider() ? 'Wallet connection was not approved' : 'Install or enable an Ethereum wallet extension';
       button.setAttribute('aria-label', button.textContent);
     } else {
-      button.textContent = providers.length > 1 ? 'Choose wallet' : 'Connect wallet';
+      button.textContent = 'Connect wallet';
       button.title = provider() ? 'Connect wallet' : 'No wallet provider found';
       button.setAttribute('aria-label', 'Connect wallet');
     }
@@ -170,7 +170,7 @@
 
     document.addEventListener('click', e => {
       if (!menu || !button) return;
-      if (e.target === button || menu.contains(e.target)) return;
+      if (button.contains(e.target) || menu.contains(e.target)) return;
       closeMenu();
     });
 

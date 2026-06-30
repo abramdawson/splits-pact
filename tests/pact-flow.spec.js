@@ -24,14 +24,18 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   const page = await issuer.newPage();
 
   await page.goto('/');
-  await expect(page.locator('#createBtn')).toHaveText('Connect to create');
+  await expect(page.locator('#createBtn')).toHaveText('Create issuance');
+  await expect(page.locator('#createBtn')).toBeDisabled();
   await page.locator('#projectName').fill('Cross Context PACT');
   await page.locator('#proceeds').fill(addr(1));
   await page.locator('input[data-k="name"]').nth(0).fill(addr(2));
   await page.locator('input[data-k="name"]').nth(1).fill(addr(3));
-  await page.locator('#createBtn').click();
+  await expect(page.locator('#createBtn')).toBeDisabled();
+  await expect(page.locator('#ctaHint')).toContainText('Connect wallet to create issuance');
+  await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
   await expect(page.locator('#createBtn')).toHaveText('Create issuance');
+  await expect(page.locator('#createBtn')).toBeEnabled();
   await page.locator('#createBtn').click();
   await expect(page).toHaveURL(/status\.html\?id=r/);
   await expect(page.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
@@ -70,6 +74,17 @@ test('wallet button shows a visible error when no provider is available', async 
   await page.goto('/');
   await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('No wallet found');
+});
+
+test('settings menu exposes font and theme options', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const menu = page.locator('.settings-menu');
+  await expect(menu).toBeVisible();
+  await expect(menu).toContainText('Font');
+  await expect(menu).toContainText('Theme');
+  await expect(menu).toContainText('Mono');
+  await expect(menu).toContainText('Light');
 });
 
 test('wallet picker can choose among multiple announced providers', async ({ browser }) => {
