@@ -57,8 +57,8 @@
     if (account) {
       button.textContent = short(account);
       button.classList.add('connected');
-      button.title = 'Connected wallet: ' + account + '. Click to disconnect.';
-      button.setAttribute('aria-label', 'Disconnect wallet ' + short(account));
+      button.title = 'Connected wallet: ' + account;
+      button.setAttribute('aria-label', 'Wallet ' + short(account));
     } else if (status === 'connecting') {
       button.textContent = 'Connecting...';
       button.classList.add('connecting');
@@ -82,7 +82,9 @@
 
   function toggleMenu() {
     if (!menu) return;
-    menu.innerHTML = providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
+    menu.innerHTML = account
+      ? '<button type="button" data-wallet-action="disconnect">Disconnect</button>'
+      : providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
     menu.classList.toggle('show');
   }
 
@@ -138,7 +140,7 @@
     if (button) {
       button.addEventListener('click', async () => {
         if (account) {
-          disconnect();
+          toggleMenu();
           return;
         }
         if (providers.length > 1) {
@@ -156,6 +158,11 @@
 
     if (menu) {
       menu.addEventListener('click', async e => {
+        if (e.target.dataset.walletAction === 'disconnect') {
+          closeMenu();
+          disconnect();
+          return;
+        }
         const item = providers.find(p => p.id === e.target.dataset.walletId);
         if (!item) return;
         closeMenu();
