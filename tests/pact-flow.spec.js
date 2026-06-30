@@ -65,3 +65,9 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await issuer.close();
   await buyer.close();
 });
+
+test('wallet button shows a visible error when no provider is available', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#walletToggle').click();
+  await expect(page.locator('#walletToggle')).toContainText('No wallet found');
+});

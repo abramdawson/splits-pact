@@ -103,6 +103,8 @@ body { font-family: var(--font); background: var(--page-bg); color: var(--ink); 
 .font-toggle { font-size: 15px; font-weight: 600; line-height: 1; }
 .wallet-toggle { min-width: 122px; padding: 0 12px; font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; }
 .wallet-toggle.connected { color: var(--ok); }
+.wallet-toggle.error { color: var(--danger); border-color: var(--danger); }
+.wallet-toggle.connecting { color: var(--pending); }
 .icon-sun { display: none; }
 html.dark .icon-moon { display: none; }
 html.dark .icon-sun { display: block; }
