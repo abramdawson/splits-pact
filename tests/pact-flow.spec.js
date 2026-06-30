@@ -71,3 +71,39 @@ test('wallet button shows a visible error when no provider is available', async 
   await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('No wallet found');
 });
+
+test('wallet picker can choose among multiple announced providers', async ({ browser }) => {
+  const context = await browser.newContext();
+  await context.addInitScript(accounts => {
+    const makeProvider = (account, shouldReject) => ({
+      request: async ({ method }) => {
+        if (method === 'eth_requestAccounts') {
+          if (shouldReject) throw new Error('Rejected by default wallet');
+          return [account];
+        }
+        if (method === 'eth_accounts') return [];
+        throw new Error('Unsupported wallet method: ' + method);
+      },
+      on: () => {},
+    });
+    const first = makeProvider(accounts.first, true);
+    const second = makeProvider(accounts.second, false);
+    window.ethereum = first;
+    window.addEventListener('eip6963:requestProvider', () => {
+      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+        detail: { info: { uuid: 'default-wallet', name: 'Default Wallet' }, provider: first },
+      }));
+      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+        detail: { info: { uuid: 'second-wallet', name: 'Second Wallet' }, provider: second },
+      }));
+    });
+  }, { first: addr(7), second: addr(6) });
+
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.locator('#walletToggle').click();
+  await expect(page.getByRole('button', { name: 'Default Wallet' })).toBeVisible();
+  await page.getByRole('button', { name: 'Second Wallet' }).click();
+  await expect(page.locator('#walletToggle')).toContainText('0x0000...0006');
+  await context.close();
+});
