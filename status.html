@@ -57,6 +57,7 @@
 
 <script src="api.js"></script>
 <script src="wallet.js"></script>
+<script src="dist/onchain.bundle.js"></script>
 <script src="settings.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -64,6 +65,7 @@ const app = $('app');
 
 const fmtMoney = n => '$' + Math.round(n).toLocaleString('en-US');
 const fmtTokens = n => Math.round(n).toLocaleString('en-US');
+const fmtPct = n => Number(n || 0).toFixed(1) + '%';
 const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const fmtMonthYear = ts => new Date(ts).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 const fmtPrice = p => '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -71,9 +73,12 @@ const fmtShort = ts => { const d = new Date(ts); return d.getDate() + '-' + d.to
 const shortAddr = a => a && a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : (a || '');
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
+const basescanAddress = address => 'https://basescan.org/address/' + encodeURIComponent(address);
+const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/' + encodeURIComponent(address) + '/?chainId=8453';
 
 const raiseId = new URLSearchParams(location.search).get('id');
 let currentRaise = null;
+let onchainCapTableState = null;
 
 function getRaise() { return currentRaise; }
 async function loadRaise() {
@@ -87,7 +92,9 @@ async function loadRaise() {
   } catch (err) {
     currentRaise = null;
   }
+  onchainCapTableState = null;
   render();
+  refreshOnchainCapTable();
 }
 
 // fraction of the project sold once a cumulative $R has been raised along the curve
@@ -116,6 +123,46 @@ function tokenMath(r) {
   return { tokensById, fundedTotal: cum, allocatedTotal };
 }
 
+async function refreshOnchainCapTable() {
+  const r = getRaise();
+  if (!r || !r.liquidSplitAddress || !r.bondingCurveAddress || !window.PactAPI) return;
+  const key = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
+  onchainCapTableState = { key, status: 'loading' };
+  render();
+  try {
+    const result = await PactAPI.getLiquidSplitHolders(r.liquidSplitAddress, r.chainId || 8453);
+    const holders = result.holders || [];
+    const curve = holders.find(holder => String(holder.address || '').toLowerCase() === String(r.bondingCurveAddress || '').toLowerCase());
+    onchainCapTableState = { key, status: 'loaded', source: result.source || 'splits-explorer', curveBalance: curve ? Number(curve.balance) : 0, holders };
+  } catch (explorerErr) {
+    try {
+      onchainCapTableState = await readOnchainCapTableFromRpc(r, key);
+    } catch (rpcErr) {
+      onchainCapTableState = {
+        key,
+        status: 'error',
+        error: rpcErr.message || explorerErr.message || 'Could not read onchain cap table.',
+      };
+    }
+  }
+  render();
+}
+
+async function readOnchainCapTableFromRpc(r, key) {
+  if (!window.PactLiquidSplit) throw new Error('Onchain bundle is unavailable.');
+    const [curveBalance, holders] = await Promise.all([
+      PactLiquidSplit.getLiquidSplitTokenBalance({
+        liquidSplitAddress: r.liquidSplitAddress,
+        account: r.bondingCurveAddress,
+      }),
+      PactLiquidSplit.getLiquidSplitHolders({
+        liquidSplitAddress: r.liquidSplitAddress,
+        deploymentTxHash: r.liquidSplitTxHash,
+      }),
+    ]);
+  return { key, status: 'loaded', curveBalance: Number(curveBalance), holders, source: 'rpc' };
+}
+
 function buyLink(allocId) {
   return new URL('buy.html?r=' + raiseId + '&a=' + allocId, location.href).href;
 }
@@ -137,6 +184,72 @@ function copy(text, msg) {
   });
 }
 
+function capTableHoldersFor(r, key) {
+  const bondingCurveAddress = String(r.bondingCurveAddress || '').toLowerCase();
+  const state = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : null;
+  const holders = state && state.status === 'loaded'
+    ? state.holders
+    : [
+        ...(r.holders || []).map(h => ({ address: h.address, balance: h.tokens })),
+        ...(r.bondingCurveAddress && r.newMoney ? [{ address: r.bondingCurveAddress, balance: r.newMoney.tokens }] : []),
+      ];
+  return holders.slice().sort((a, b) => {
+    const ac = String(a.address || '').toLowerCase() === bondingCurveAddress ? 1 : 0;
+    const bc = String(b.address || '').toLowerCase() === bondingCurveAddress ? 1 : 0;
+    if (ac !== bc) return ac - bc;
+    return String(a.address || '').toLowerCase() > String(b.address || '').toLowerCase() ? 1 : -1;
+  });
+}
+
+function capTableRowsFor(r, key, holders) {
+  const bondingCurveAddress = String(r.bondingCurveAddress || '').toLowerCase();
+  const state = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : null;
+  if (state && state.status === 'loading') {
+    return '<tr><td colspan="4" class="px-2 py-5 text-center t-muted">Loading current Liquid Split holders...</td></tr>';
+  }
+
+  if (!holders.length) {
+    return '<tr><td colspan="4" class="px-2 py-5 text-center t-muted">No cap table entries yet.</td></tr>';
+  }
+
+  return holders
+    .map(holder => {
+      const address = holder.address;
+      const lower = String(address || '').toLowerCase();
+      const isCurve = lower === bondingCurveAddress;
+      const label = isCurve
+        ? `Bonding curve: <a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`
+        : `<a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`;
+      return `<tr${isCurve ? ' class="highlight"' : ''}>
+        <td>${label}</td>
+        <td class="num">${fmtTokens(holder.balance)}</td>
+        <td class="num">${fmtPct(holder.balance / r.totalTokens * 100)}</td>
+        <td></td>
+      </tr>`;
+    })
+    .join('');
+}
+
+function capTableFooterFor(r, key, holders) {
+  const state = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : null;
+  const loading = state && state.status === 'loading';
+  const totalTokens = holders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
+  const liquidSplitLink = r.liquidSplitAddress
+    ? `<a class="linkbtn" href="${splitsExplorerAccount(r.liquidSplitAddress)}" target="_blank" rel="noreferrer">${shortAddr(r.liquidSplitAddress)}</a>`
+    : '<span class="t-muted">Not deployed</span>';
+  return `<tfoot>
+    <tr>
+      <td>Total</td>
+      <td class="num">${loading ? '...' : fmtTokens(totalTokens)}</td>
+      <td class="num">${loading ? '...' : fmtPct(totalTokens / r.totalTokens * 100)}</td>
+      <td></td>
+    </tr>
+    <tr class="footnote">
+      <td colspan="4">Verify this cap table by viewing the Liquid Split at ${liquidSplitLink}.</td>
+    </tr>
+  </tfoot>`;
+}
+
 function render() {
   const r = getRaise();
   if (!r) {
@@ -150,7 +263,8 @@ function render() {
   const offerTokens = r.maxDilutionPct / 100 * r.totalTokens;
   const purchased = tokensBetween(r, 0, m.fundedTotal);
   const F = r.maxDilutionPct / 100;
-  const valNow = r.valuation.floor + (r.valuation.ceiling - r.valuation.floor) * (F > 0 ? fractionAt(r, m.fundedTotal) / F : 0);
+  const currentFraction = fractionAt(r, m.fundedTotal);
+  const valNow = r.valuation.floor + (r.valuation.ceiling - r.valuation.floor) * (F > 0 ? currentFraction / F : 0);
 
   const closeDate = r.createdAt + r.minimum.deadlineDays * 86400000;
   const filled = m.fundedTotal >= max;
@@ -160,7 +274,6 @@ function render() {
   const secured = gap <= 0;
   const statusWord = open ? 'Open' : 'Closed';
   const noteText = secured ? 'secured' : (open ? fmtMoney(gap) + ' below threshold' : 'below threshold — refund');
-  const noteColor = secured ? 'var(--ok)' : (open ? 'var(--pending)' : 'var(--danger)');
 
   const ordered = [
     ...r.allocations.filter(a => a.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0)),
@@ -170,7 +283,7 @@ function render() {
   const segs = [];
   ordered.forEach(a => {
     const left = cum / max * 100;
-    if (left < 100) segs.push({ a, left, width: Math.min(a.amountUsd / max * 100, 100 - left), funded: a.status === 'funded' });
+    if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / max * 100, 100 - left), funded: a.status === 'funded' });
     cum += a.amountUsd;
   });
   const minPct = Math.min(100, min / max * 100);
@@ -192,6 +305,21 @@ function render() {
       </td>
     </tr>`;
   }).join('');
+  const bondingCurveAddress = r.bondingCurveAddress || '';
+  const capTableKey = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
+  const capTableHolders = capTableHoldersFor(r, capTableKey);
+  const capTableRows = capTableRowsFor(r, capTableKey, capTableHolders);
+  const capTableFooter = capTableFooterFor(r, capTableKey, capTableHolders);
+  const capTableState = onchainCapTableState && onchainCapTableState.key === capTableKey ? onchainCapTableState : null;
+  const capTableNote = !r.liquidSplitAddress
+    ? 'Onchain cap table appears after Liquid Split deployment.'
+    : capTableState && capTableState.status === 'loading'
+      ? 'Reading indexed holder balances from Splits Explorer.'
+      : capTableState && capTableState.status === 'loaded' && capTableState.source === 'rpc'
+        ? 'Splits Explorer was unavailable. Showing current balances from direct Base RPC.'
+        : capTableState && capTableState.status === 'error'
+          ? 'Could not read indexed or direct onchain balances. Showing issuance targets.'
+        : '';
 
   app.innerHTML = `
     <div class="mb-2 flex items-start justify-between gap-4">
@@ -212,12 +340,12 @@ function render() {
     <dl class="deflist">
       <dt>Status</dt><dd class="flex items-baseline space-x-2"><span>${statusWord}</span><span class="t-muted">${noteText}</span></dd>
       <dt>Tokens sold</dt><dd>${fmtTokens(purchased)} of ${fmtTokens(offerTokens)}</dd>
-      <dt>Current valuation</dt><dd>${fmtMoney(valNow)} post-money</dd>
+      <dt>Current valuation</dt><dd class="flex items-baseline space-x-2"><span>${fmtMoney(valNow)} post-money</span><span class="t-muted">${fmtPrice(valNow / r.totalTokens)} / share</span></dd>
     </dl>
 
     <div class="mt-8">
       <div class="track-wrap">
-        ${segs.map(s => `<div class="seg ${s.funded ? 'funded' : 'allocated'}" style="left:${s.left}%;width:${s.width}%"><span class="tip">${esc(s.a.name)}: ${fmtMoney(s.a.amountUsd)}</span></div>`).join('')}
+        ${segs.map(s => `<div class="seg ${s.funded ? 'funded' : 'allocated'}" style="left:${s.left}%;width:${s.width}%"><span class="tip">${esc(s.label)}: ${fmtMoney(s.amountUsd)}</span></div>`).join('')}
         <div class="minmark" style="left:${minPct}%"><div class="tip">Threshold: ${fmtMoney(min)}${secured ? '' : ` <span class="ml-2">${fmtMoney(gap)} below</span>`}</div></div>
       </div>
       <div class="flex justify-between items-baseline mt-2 text-[12px]">
@@ -243,6 +371,14 @@ function render() {
     <table class="exhibit alloc-table mt-10">
       <thead><tr><th>Buyer</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="4" class="px-2 py-5 text-center t-muted">No allocations yet. Create a private allocation using the above form.</td></tr>`}</tbody>
+    </table>
+
+    <div class="font-bold mb-2 mt-10">Cap table</div>
+    ${capTableNote ? `<p class="text-[12px] t-muted mb-2">${capTableNote}</p>` : ''}
+    <table class="exhibit mb-10">
+      <thead><tr><th>Holder</th><th class="num">Tokens</th><th class="num">Ownership</th><th></th></tr></thead>
+      <tbody>${capTableRows}</tbody>
+      ${capTableFooter}
     </table>`;
 }
 
@@ -310,7 +446,7 @@ loadRaise();
 </script>
 <script>
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    const watch = [location.href, 'app.css', 'api.js', 'wallet.js', 'settings.js'];
+    const watch = [location.href, 'app.css', 'api.js', 'wallet.js', 'settings.js', 'dist/onchain.bundle.js'];
     let stamp = null;
     setInterval(async () => {
       try {

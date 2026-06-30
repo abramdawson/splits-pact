@@ -4,6 +4,17 @@ const express = require('express');
 const Database = require('better-sqlite3');
 
 const DEFAULT_PORT = 7228;
+const DEFAULT_CHAIN_ID = 8453;
+const EXPLORER_OWNERSHIP_SCALE = 1000000;
+const PACT_LIQUID_SPLIT_UNITS = 1000;
+function splitsExplorerApiKey() {
+  return process.env.SPLITS_EXPLORER_API_KEY || '';
+}
+
+function splitsExplorerGraphqlUrl() {
+  return process.env.SPLITS_EXPLORER_GRAPHQL_URL
+    || (splitsExplorerApiKey() ? 'https://api.splits.org/graphql' : 'https://api.splits.org/api/public/graphql');
+}
 
 function makeId(prefix) {
   return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -61,6 +72,89 @@ function parseAmount(value) {
 
 function isAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
+}
+
+function parseHolderAddress(holderId) {
+  const address = String(holderId || '').split('-').pop();
+  return isAddress(address) ? address : null;
+}
+
+function explorerOwnershipToPactUnits(ownership) {
+  return parseAmount(ownership) / (EXPLORER_OWNERSHIP_SCALE / PACT_LIQUID_SPLIT_UNITS);
+}
+
+async function fetchLiquidSplitHoldersFromExplorer(input = {}, fetchImpl = global.fetch) {
+  const liquidSplitAddress = String(input.liquidSplitAddress || '').trim();
+  const chainId = String(input.chainId || DEFAULT_CHAIN_ID);
+  if (!isAddress(liquidSplitAddress)) {
+    return { status: 400, body: { error: 'Liquid Split address is required.' } };
+  }
+  if (typeof fetchImpl !== 'function') {
+    return { status: 502, body: { error: 'Explorer fetch is unavailable.' } };
+  }
+
+  const query = `
+    query PactLiquidSplitHolders($accountId: ID!, $chainId: String!) {
+      account(id: $accountId, chainId: $chainId) {
+        __typename
+        ... on LiquidSplit {
+          holders {
+            id
+            ownership
+          }
+        }
+      }
+    }
+  `;
+
+  let response;
+  try {
+    const headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Origin': new URL(splitsExplorerGraphqlUrl()).origin,
+    };
+    if (splitsExplorerApiKey()) {
+      headers.Authorization = 'Bearer ' + splitsExplorerApiKey();
+    }
+    response = await fetchImpl(splitsExplorerGraphqlUrl(), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query,
+        variables: {
+          accountId: liquidSplitAddress.toLowerCase(),
+          chainId,
+        },
+      }),
+    });
+  } catch (err) {
+    return { status: 502, body: { error: 'Could not reach Splits Explorer.', detail: err.message } };
+  }
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { status: 502, body: { error: 'Splits Explorer request failed.', detail: body.error || response.statusText } };
+  }
+  if (Array.isArray(body.errors) && body.errors.length) {
+    return { status: 502, body: { error: 'Splits Explorer returned an error.', detail: body.errors[0].message } };
+  }
+
+  const account = body.data && body.data.account;
+  if (!account) return { status: 404, body: { error: 'Liquid Split was not found in Splits Explorer.' } };
+  if (account.__typename && account.__typename !== 'LiquidSplit') {
+    return { status: 400, body: { error: 'Account is not a Liquid Split.' } };
+  }
+
+  const holders = (account.holders || [])
+    .map(holder => ({
+      address: parseHolderAddress(holder.id),
+      balance: explorerOwnershipToPactUnits(holder.ownership),
+    }))
+    .filter(holder => holder.address && holder.balance > 0)
+    .sort((a, b) => a.address.toLowerCase() > b.address.toLowerCase() ? 1 : -1);
+
+  return { status: 200, body: { holders, source: 'splits-explorer', chainId: Number(chainId) } };
 }
 
 function validateRaise(input) {
@@ -213,6 +307,13 @@ function createApp(options = {}) {
     sendResult(res, getRaise(db, req.params.id));
   });
 
+  app.get('/api/liquid-splits/:address/holders', async (req, res) => {
+    sendResult(res, await fetchLiquidSplitHoldersFromExplorer({
+      liquidSplitAddress: req.params.address,
+      chainId: req.query.chainId || DEFAULT_CHAIN_ID,
+    }, options.fetch || global.fetch));
+  });
+
   app.post('/api/raises/:id/allocations', (req, res) => {
     sendResult(res, addAllocation(db, req.params.id, req.body));
   });
@@ -242,9 +343,10 @@ function createApp(options = {}) {
 if (require.main === module) {
   const port = Number(process.env.PORT || DEFAULT_PORT);
   const app = createApp();
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`PACT server listening on http://localhost:${port}`);
   });
+  process.on('SIGTERM', () => server.close(() => process.exit(0)));
 }
 
 module.exports = {
@@ -257,4 +359,5 @@ module.exports = {
   addAllocation,
   deleteAllocation,
   setAllocationFunded,
+  fetchLiquidSplitHoldersFromExplorer,
 };

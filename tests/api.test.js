@@ -11,6 +11,7 @@ const {
   deleteAllocation,
   setAllocationFunded,
   listRaises,
+  fetchLiquidSplitHoldersFromExplorer,
 } = require('../server');
 
 function fixtureRaise() {
@@ -110,4 +111,86 @@ test('rejects invalid raises and allocations', () => {
     const badAllocation = addAllocation(db, created.body.id, { name: '', amountUsd: 0 });
     assert.equal(badAllocation.status, 400);
   });
+});
+
+test('maps Splits Explorer Liquid Split holders', async () => {
+  const split = '0x0000000000000000000000000000000000001234';
+  const holder = '0x0000000000000000000000000000000000000002';
+  const curve = '0xc6C8F6E4A73B2971C725359bb595Da1306FE5257';
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      json: async () => ({
+        data: {
+          account: {
+            __typename: 'LiquidSplit',
+            holders: [
+              { id: split.toLowerCase() + '-' + holder.toLowerCase(), ownership: '400000' },
+              { id: split.toLowerCase() + '-' + curve.toLowerCase(), ownership: '200000' },
+              { id: split.toLowerCase() + '-not-an-address', ownership: '1' },
+              { id: split.toLowerCase() + '-0x0000000000000000000000000000000000000003', ownership: '0' },
+            ],
+          },
+        },
+      }),
+    };
+  };
+
+  const result = await fetchLiquidSplitHoldersFromExplorer({ liquidSplitAddress: split, chainId: 8453 }, fetchImpl);
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.source, 'splits-explorer');
+  assert.deepEqual(result.body.holders, [
+    { address: holder.toLowerCase(), balance: 400 },
+    { address: curve.toLowerCase(), balance: 200 },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.parse(calls[0].options.body).variables.accountId, split.toLowerCase());
+});
+
+test('rejects invalid Liquid Split holder lookups', async () => {
+  const result = await fetchLiquidSplitHoldersFromExplorer({ liquidSplitAddress: 'nope' }, async () => {
+    throw new Error('should not fetch');
+  });
+  assert.equal(result.status, 400);
+});
+
+test('uses Splits Explorer API key when configured', async () => {
+  const originalKey = process.env.SPLITS_EXPLORER_API_KEY;
+  const originalUrl = process.env.SPLITS_EXPLORER_GRAPHQL_URL;
+  delete process.env.SPLITS_EXPLORER_GRAPHQL_URL;
+  process.env.SPLITS_EXPLORER_API_KEY = 'test-key';
+
+  try {
+    let call;
+    const fetchImpl = async (url, options) => {
+      call = { url, options };
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            account: {
+              __typename: 'LiquidSplit',
+              holders: [],
+            },
+          },
+        }),
+      };
+    };
+
+    const result = await fetchLiquidSplitHoldersFromExplorer({
+      liquidSplitAddress: '0x0000000000000000000000000000000000001234',
+    }, fetchImpl);
+
+    assert.equal(result.status, 200);
+    assert.equal(call.url, 'https://api.splits.org/graphql');
+    assert.equal(call.options.headers.Authorization, 'Bearer test-key');
+  } finally {
+    if (originalKey == null) delete process.env.SPLITS_EXPLORER_API_KEY;
+    else process.env.SPLITS_EXPLORER_API_KEY = originalKey;
+    if (originalUrl == null) delete process.env.SPLITS_EXPLORER_GRAPHQL_URL;
+    else process.env.SPLITS_EXPLORER_GRAPHQL_URL = originalUrl;
+  }
 });

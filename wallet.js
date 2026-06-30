@@ -276,6 +276,7 @@
     disconnect,
     prompt,
     get account() { return account; },
+    get provider() { return provider(); },
     short,
   };
 })();
