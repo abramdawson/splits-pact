@@ -91,14 +91,14 @@
     const rows = issuances.length
       ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}">${raise.projectName || 'Untitled issuance'}</a>`).join('')
       : '<div class="wallet-menu-note">No issuances yet</div>';
-    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html">New issuance</a>';
+    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html" class="wallet-menu-action">New issuance</a>';
     return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
   }
 
   function renderMenu() {
     if (!menu) return;
     menu.innerHTML = account
-      ? renderIssuanceMenu() + '<div class="wallet-menu-group"><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>'
+      ? '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu()
       : providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
   }
 
