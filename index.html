@@ -395,6 +395,16 @@ async function saveIssuance(data) {
 }
 
 $('createBtn').addEventListener('click', async () => {
+  if (!connectedWallet) {
+    try {
+      await PactWallet.prompt();
+    } catch (err) {
+      const fe = $('formError');
+      fe.textContent = err.message || 'Could not connect wallet.';
+      fe.classList.remove('hidden');
+    }
+    return;
+  }
   if (!validate().ok) {
     const fe = $('formError');
     fe.textContent = connectedWallet ? 'Please correct the highlighted fields — hover for details.' : 'Connect a wallet before creating an issuance.';

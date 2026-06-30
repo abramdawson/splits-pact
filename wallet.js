@@ -86,6 +86,20 @@
     menu.classList.toggle('show');
   }
 
+  async function prompt() {
+    if (account) return account;
+    if (providers.length > 1) {
+      toggleMenu();
+      return null;
+    }
+    try {
+      return await connect();
+    } catch (err) {
+      setStatus('error');
+      throw err;
+    }
+  }
+
   async function restoreAccount() {
     if (!provider() || localStorage.getItem(STORAGE_KEY) === '1') return;
     try {
@@ -181,6 +195,7 @@
     init,
     connect,
     disconnect,
+    prompt,
     get account() { return account; },
     short,
   };

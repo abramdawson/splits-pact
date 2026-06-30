@@ -30,8 +30,6 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await page.locator('input[data-k="name"]').nth(0).fill(addr(2));
   await page.locator('input[data-k="name"]').nth(1).fill(addr(3));
   await page.locator('#createBtn').click();
-  await expect(page.locator('#formError')).toContainText('Connect a wallet');
-  await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
   await expect(page.locator('#createBtn')).toHaveText('Create issuance');
   await page.locator('#createBtn').click();
