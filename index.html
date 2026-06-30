@@ -481,7 +481,7 @@ document.querySelectorAll('input').forEach(i => i.setAttribute('autocomplete', '
 <script>
   // dev hot-reload: localhost only — reload when this page OR app.css changes
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    const watch = [location.href, 'app.css'];
+    const watch = [location.href, 'app.css', 'chart.js', 'api.js', 'wallet.js', 'settings.js'];
     let stamp = null;
     setInterval(async () => {
       try {

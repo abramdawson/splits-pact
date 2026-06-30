@@ -208,7 +208,7 @@ loadRaise();
 </script>
 <script>
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    const watch = [location.href, 'app.css'];
+    const watch = [location.href, 'app.css', 'api.js', 'wallet.js', 'settings.js'];
     let stamp = null;
     setInterval(async () => {
       try {
