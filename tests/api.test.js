@@ -10,6 +10,7 @@ const {
   addAllocation,
   deleteAllocation,
   setAllocationFunded,
+  listRaises,
 } = require('../server');
 
 function fixtureRaise() {
@@ -20,6 +21,7 @@ function fixtureRaise() {
     maximum: { reclaimUnsoldBy: 'project-treasury' },
     maxDilutionPct: 20,
     proceedsAddress: '0x0000000000000000000000000000000000000001',
+    issuerWallet: '0x0000000000000000000000000000000000000009',
     valuation: {
       effectiveCap: 50000,
       bandPct: 20,
@@ -67,9 +69,10 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
     assert.equal(added.body.allocation.status, 'allocated');
 
     const allocationId = added.body.allocation.id;
-    const funded = setAllocationFunded(db, raiseId, allocationId, true);
+    const funded = setAllocationFunded(db, raiseId, allocationId, true, { buyerWallet: '0x0000000000000000000000000000000000000008' });
     assert.equal(funded.status, 200);
     assert.equal(funded.body.allocation.status, 'funded');
+    assert.equal(funded.body.allocation.buyerWallet, '0x0000000000000000000000000000000000000008');
     assert.ok(funded.body.allocation.fundedAt);
 
     const unfunded = setAllocationFunded(db, raiseId, allocationId, false);
@@ -79,6 +82,22 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
     const deleted = deleteAllocation(db, raiseId, allocationId);
     assert.equal(deleted.status, 200);
     assert.equal(deleted.body.raise.allocations.length, 0);
+  });
+});
+
+test('lists raises for an issuer wallet', () => {
+  withDb(db => {
+    const first = createRaise(db, fixtureRaise());
+    const other = fixtureRaise();
+    other.projectName = 'Other Issuer';
+    other.issuerWallet = '0x0000000000000000000000000000000000000007';
+    createRaise(db, other);
+
+    const listed = listRaises(db, '0x0000000000000000000000000000000000000009');
+    assert.equal(listed.status, 200);
+    assert.equal(listed.body.raises.length, 1);
+    assert.equal(listed.body.raises[0].id, first.body.id);
+    assert.equal(listed.body.raises[0].projectName, 'Test PACT');
   });
 });
 

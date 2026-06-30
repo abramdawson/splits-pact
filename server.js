@@ -59,6 +59,10 @@ function parseAmount(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function isAddress(value) {
+  return /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
+}
+
 function validateRaise(input) {
   const errors = [];
   if (!input || typeof input !== 'object') errors.push('Raise payload is required.');
@@ -70,6 +74,7 @@ function validateRaise(input) {
   if (!(parseAmount(input.maxDilutionPct) > 0 && parseAmount(input.maxDilutionPct) < 100)) errors.push('Max dilution must be between 0 and 100.');
   if (!(parseAmount(input.totalTokens) > 0)) errors.push('Total tokens must be greater than 0.');
   if (!(parseAmount(input.minimum && input.minimum.deadlineDays) >= 1)) errors.push('Deadline must be at least 1 day.');
+  if (!isAddress(input.issuerWallet)) errors.push('Issuer wallet is required.');
   return errors;
 }
 
@@ -101,6 +106,29 @@ function getRaise(db, id) {
   const raise = readRaise(db, id);
   if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
   return { status: 200, body: raise };
+}
+
+function summarizeRaise(raise) {
+  const fundedTotal = (raise.allocations || [])
+    .filter(a => a.status === 'funded')
+    .reduce((sum, a) => sum + parseAmount(a.amountUsd), 0);
+  return {
+    id: raise.id,
+    projectName: raise.projectName,
+    createdAt: raise.createdAt,
+    raise: raise.raise,
+    fundedTotal,
+  };
+}
+
+function listRaises(db, input = {}) {
+  const issuerWallet = String(typeof input === 'string' ? input : input.issuerWallet || '').toLowerCase();
+  if (!isAddress(issuerWallet)) return { status: 400, body: { error: 'Issuer wallet is required.' } };
+  const raises = db.prepare('SELECT data FROM raises ORDER BY created_at DESC').all()
+    .map(row => JSON.parse(row.data))
+    .filter(raise => String(raise.issuerWallet || '').toLowerCase() === issuerWallet)
+    .map(summarizeRaise);
+  return { status: 200, body: { raises } };
 }
 
 function addAllocation(db, raiseId, input) {
@@ -136,18 +164,21 @@ function deleteAllocation(db, raiseId, allocationId) {
   return { status: 200, body: { raise } };
 }
 
-function setAllocationFunded(db, raiseId, allocationId, funded) {
+function setAllocationFunded(db, raiseId, allocationId, funded, input = {}) {
   const raise = readRaise(db, raiseId);
   if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
   if (funded && isClosed(raise)) return { status: 409, body: { error: 'Offering is closed.' } };
+  if (funded && !isAddress(input.buyerWallet)) return { status: 400, body: { error: 'Buyer wallet is required.' } };
   const allocation = (raise.allocations || []).find(a => a.id === allocationId);
   if (!allocation) return { status: 404, body: { error: 'Allocation not found.' } };
   if (funded) {
     allocation.status = 'funded';
     allocation.fundedAt = Date.now();
+    allocation.buyerWallet = input.buyerWallet;
   } else {
     allocation.status = 'allocated';
     delete allocation.fundedAt;
+    delete allocation.buyerWallet;
   }
   writeRaise(db, raise);
   return { status: 200, body: { raise, allocation } };
@@ -174,6 +205,10 @@ function createApp(options = {}) {
     sendResult(res, createRaise(db, req.body));
   });
 
+  app.get('/api/raises', (req, res) => {
+    sendResult(res, listRaises(db, req.query));
+  });
+
   app.get('/api/raises/:id', (req, res) => {
     sendResult(res, getRaise(db, req.params.id));
   });
@@ -187,7 +222,7 @@ function createApp(options = {}) {
   });
 
   app.post('/api/raises/:id/allocations/:allocationId/fund', (req, res) => {
-    sendResult(res, setAllocationFunded(db, req.params.id, req.params.allocationId, true));
+    sendResult(res, setAllocationFunded(db, req.params.id, req.params.allocationId, true, req.body));
   });
 
   app.post('/api/raises/:id/allocations/:allocationId/unfund', (req, res) => {
@@ -218,6 +253,7 @@ module.exports = {
   readRaise,
   createRaise,
   getRaise,
+  listRaises,
   addAllocation,
   deleteAllocation,
   setAllocationFunded,

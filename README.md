@@ -11,6 +11,7 @@
 - **`app.css`** — shared styles, light/dark theme variables, and the mono / serif / sans font system.
 
 Theme and font preferences are held in `localStorage`. Raise and allocation state is persisted by the local API in SQLite.
+Issuers must connect a wallet before creating an issuance, and buyers must connect a wallet before purchasing an allocation. Wallet connection is used for identity only; it does not auto-fill treasury, holder, buyer, or allocation address fields.
 
 ## Running locally
 
@@ -62,7 +63,7 @@ The important production setting is `PACT_DB_PATH=/data/pact.sqlite`, with `/dat
 
 The big pieces between this prototype and something real:
 
-1. **Wallet connection (Ethereum provider)** — a connect-wallet flow for issuer and buyer identity. Wallet connection should not auto-fill treasury, holder, buyer, or allocation addresses.
+1. **Wallet authorization** — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
 2. **Deploy the Liquid Split on issuance** — when an issuance is created, mint the 1,000-token Liquid Split and distribute the holder allocations to their addresses.
 3. **Bonding-curve sale contract** — on-chain logic that holds the offering's tokens and sells them along the curve, with price and token count settled at the moment of purchase.
 4. **Real purchase transaction** — wire the "Purchase" CTA to an actual payment to the treasury plus token issuance, replacing the simulated funding and the dummy transaction hash.
