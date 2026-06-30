@@ -24,6 +24,10 @@
     listRaises(issuerWallet) {
       return request('/api/raises?issuerWallet=' + encodeURIComponent(issuerWallet));
     },
+    getLiquidSplitHolders(address, chainId) {
+      const query = chainId ? '?chainId=' + encodeURIComponent(chainId) : '';
+      return request('/api/liquid-splits/' + encodeURIComponent(address) + '/holders' + query);
+    },
     addAllocation(raiseId, allocation) {
       return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations', {
         method: 'POST',

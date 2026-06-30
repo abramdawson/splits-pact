@@ -47,16 +47,19 @@ body { font-family: var(--font); background: var(--page-bg); color: var(--ink); 
 
 /* exhibit table */
 .exhibit { border-collapse: collapse; width: 100%; }
-.exhibit th, .exhibit td { padding: 0 8px; height: 34px; line-height: 1.4; vertical-align: middle; }
+.exhibit th, .exhibit td { padding: 0; height: 30px; line-height: 1.35; vertical-align: middle; }
+.exhibit th + th, .exhibit td + td { padding-left: 14px; }
 .exhibit thead th { border-bottom: 1px solid var(--line-strong); font-weight: 600; text-align: left; font-size: 13px; }
 .exhibit .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .exhibit tbody tr td { border-bottom: 1px dotted var(--line-dotted); }
 .exhibit input[data-k="name"] { padding-left: 0; }
 .exhibit tr.highlight td { background: var(--highlight); }
 .exhibit tr.addrow td { padding: 0; border-bottom: 1px dotted var(--line-dotted); }
-.exhibit tr.addrow button { width: 100%; display: block; box-sizing: border-box; height: 34px; background: none; border: 0; padding: 0 8px; font-family: inherit; font-size: 13px; color: var(--muted); cursor: pointer; transition: background-color 120ms ease; }
+.exhibit tr.addrow button { width: 100%; display: block; box-sizing: border-box; height: 30px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 13px; color: var(--marker); cursor: pointer; transition: background-color 120ms ease; }
 .exhibit tr.addrow button:hover { background: var(--row-hover); color: var(--ink); }
 .exhibit tfoot td { border-top: 1px solid var(--line-strong); font-weight: 600; }
+.exhibit tfoot tr.footnote td { border-top: 0; height: 28px; padding-top: 8px; text-align: left; font-size: 12px; font-style: italic; font-weight: 400; color: var(--muted); }
+.exhibit tfoot tr.footnote .linkbtn { color: inherit; }
 .delx { background: none; border: 0; cursor: pointer; color: var(--del); font-size: 18px; line-height: 1; padding: 8px 12px; margin: -6px -4px; border-radius: 0; }
 .delx:hover { color: var(--danger); }
 .bad { color: var(--danger); }

@@ -136,6 +136,7 @@
 <script src="chart.js"></script>
 <script src="api.js"></script>
 <script src="wallet.js"></script>
+<script src="dist/onchain.bundle.js"></script>
 <script src="settings.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -422,6 +423,18 @@ function buildIssuance() {
 }
 
 async function saveIssuance(data) {
+  if (!window.PactLiquidSplit) throw new Error('Onchain deployment module is unavailable.');
+  const deployment = await PactLiquidSplit.deployLiquidSplit({
+    provider: PactWallet.provider,
+    issuance: data,
+    owner: connectedWallet,
+  });
+  data.chainId = deployment.chainId;
+  data.liquidSplitFactory = deployment.factoryAddress;
+  data.liquidSplitAddress = deployment.liquidSplitAddress;
+  data.liquidSplitTxHash = deployment.transactionHash;
+  data.bondingCurveAddress = PactLiquidSplit.TEMP_BONDING_CURVE_ADDRESS;
+  data.onchainStatus = 'deployed';
   const raise = await PactAPI.createRaise(data);
   window.location.href = 'status.html?id=' + encodeURIComponent(raise.id);
 }
@@ -435,6 +448,7 @@ $('createBtn').addEventListener('click', async () => {
   }
   const btn = $('createBtn');
   btn.disabled = true;
+  btn.textContent = 'Deploying Liquid Split...';
   try {
     await saveIssuance(buildIssuance());
   } catch (err) {
@@ -442,6 +456,7 @@ $('createBtn').addEventListener('click', async () => {
     fe.textContent = err.message || 'Could not create issuance.';
     fe.classList.remove('hidden');
     btn.disabled = false;
+    btn.textContent = 'Create issuance';
   }
 });
 
@@ -481,7 +496,7 @@ document.querySelectorAll('input').forEach(i => i.setAttribute('autocomplete', '
 <script>
   // dev hot-reload: localhost only — reload when this page OR app.css changes
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    const watch = [location.href, 'app.css', 'chart.js', 'api.js', 'wallet.js', 'settings.js'];
+    const watch = [location.href, 'app.css', 'chart.js', 'api.js', 'wallet.js', 'settings.js', 'dist/onchain.bundle.js'];
     let stamp = null;
     setInterval(async () => {
       try {
