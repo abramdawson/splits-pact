@@ -107,12 +107,14 @@ body { font-family: var(--font); background: var(--page-bg); color: var(--ink); 
 .wallet-toggle.connecting { color: var(--pending); }
 .wallet-menu { position: absolute; top: 44px; right: 44px; min-width: 180px; display: none; background: var(--paper); border: 1px solid var(--paper-border); box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 .wallet-menu.show { display: block; }
-.wallet-menu button, .wallet-menu a { width: 100%; min-height: 34px; display: flex; align-items: center; border: 0; background: transparent; color: var(--ink); font-family: var(--font); font-size: 12px; text-align: left; padding: 0 10px; cursor: pointer; text-decoration: none; }
+.wallet-menu button, .wallet-menu a { width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; border: 0; background: transparent; color: var(--ink); font-family: var(--font); font-size: 12px; text-align: left; padding: 0 10px; cursor: pointer; text-decoration: none; }
 .wallet-menu button:hover, .wallet-menu a:hover { background: var(--row-hover); }
 .wallet-menu-group + .wallet-menu-group { border-top: 1px solid var(--paper-border); }
 .wallet-menu-label { padding: 9px 10px 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0; }
 .wallet-menu-note { padding: 8px 10px 10px; color: var(--muted); font-size: 12px; }
 .wallet-menu a.wallet-menu-action { color: var(--marker); }
+.wallet-menu-dot { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto; }
+.wallet-menu-dot.active { background: var(--ink); }
 .settings-menu { position: absolute; top: 44px; right: 0; min-width: 190px; display: none; background: var(--paper); border: 1px solid var(--paper-border); box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 .settings-menu.show { display: block; }
 .settings-group + .settings-group { border-top: 1px solid var(--paper-border); }

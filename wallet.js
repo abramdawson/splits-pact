@@ -86,10 +86,16 @@
     return path === '' || path === 'index.html';
   }
 
+  function currentRaiseId() {
+    const path = location.pathname.split('/').pop();
+    return path === 'status.html' ? new URLSearchParams(location.search).get('id') : null;
+  }
+
   function renderIssuanceMenu() {
     if (!issuances) return '<div class="wallet-menu-note">Loading issuances...</div>';
+    const activeRaiseId = currentRaiseId();
     const rows = issuances.length
-      ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}">${raise.projectName || 'Untitled issuance'}</a>`).join('')
+      ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}"><span>${raise.projectName || 'Untitled issuance'}</span><span class="wallet-menu-dot${raise.id === activeRaiseId ? ' active' : ''}"></span></a>`).join('')
       : '<div class="wallet-menu-note">No issuances yet</div>';
     const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html" class="wallet-menu-action">New issuance</a>';
     return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
