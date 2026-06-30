@@ -205,11 +205,11 @@ function capTableRowsFor(r, key, holders) {
   const bondingCurveAddress = String(r.bondingCurveAddress || '').toLowerCase();
   const state = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : null;
   if (state && state.status === 'loading') {
-    return '<tr><td colspan="4" class="px-2 py-5 text-center t-muted">Loading current Liquid Split holders...</td></tr>';
+    return '<tr><td colspan="3" class="px-2 py-5 text-center t-muted">Loading current Liquid Split holders...</td></tr>';
   }
 
   if (!holders.length) {
-    return '<tr><td colspan="4" class="px-2 py-5 text-center t-muted">No cap table entries yet.</td></tr>';
+    return '<tr><td colspan="3" class="px-2 py-5 text-center t-muted">No cap table entries yet.</td></tr>';
   }
 
   return holders
@@ -224,7 +224,6 @@ function capTableRowsFor(r, key, holders) {
         <td>${label}</td>
         <td class="num">${fmtTokens(holder.balance)}</td>
         <td class="num">${fmtPct(holder.balance / r.totalTokens * 100)}</td>
-        <td></td>
       </tr>`;
     })
     .join('');
@@ -242,10 +241,9 @@ function capTableFooterFor(r, key, holders) {
       <td>Total</td>
       <td class="num">${loading ? '...' : fmtTokens(totalTokens)}</td>
       <td class="num">${loading ? '...' : fmtPct(totalTokens / r.totalTokens * 100)}</td>
-      <td></td>
     </tr>
     <tr class="footnote">
-      <td colspan="4">Verify this cap table by viewing the Liquid Split at ${liquidSplitLink}.</td>
+      <td colspan="3">Verify this cap table by viewing the Liquid Split at ${liquidSplitLink}.</td>
     </tr>
   </tfoot>`;
 }
@@ -376,7 +374,7 @@ function render() {
     <div class="font-bold mb-2 mt-10">Cap table</div>
     ${capTableNote ? `<p class="text-[12px] t-muted mb-2">${capTableNote}</p>` : ''}
     <table class="exhibit mb-10">
-      <thead><tr><th>Holder</th><th class="num">Tokens</th><th class="num">Ownership</th><th></th></tr></thead>
+      <thead><tr><th>Holder</th><th class="num">Tokens</th><th class="num">Ownership</th></tr></thead>
       <tbody>${capTableRows}</tbody>
       ${capTableFooter}
     </table>`;

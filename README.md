@@ -114,9 +114,9 @@ The important production setting is `PACT_DB_PATH=/data/pact.sqlite`, with `/dat
 
 The big pieces between this prototype and something real:
 
-1. **Wallet authorization** — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
-2. **Bonding-curve sale contract** — on-chain logic that holds the offering's tokens and sells them along the curve, with price and token count settled at the moment of purchase. The temporary bonding curve address is currently just a Base account that receives the offering's Liquid Split units.
-3. **Real purchase transaction** — wire the "Purchase" CTA to an actual payment to the treasury plus token issuance, replacing the simulated funding and the dummy transaction hash.
-4. **Threshold / close-date mechanics** *(stretch — may be descoped)* — enforce refund-in-full if the minimum isn't met by the close date, close the offering at the date, and revert unsold tokens to the treasury if the max isn't reached.
+1. **Bonding-curve sale contract** — on-chain logic that holds the offering's tokens and sells them along the curve, with price and token count settled at the moment of purchase. The temporary bonding curve address is currently just a Base account that receives the offering's Liquid Split units.
+2. **Real purchase transaction** — wire the "Purchase" CTA to an actual payment to the treasury plus token issuance, replacing the simulated funding and the dummy transaction hash.
+3. **Threshold / close-date mechanics** *(stretch — may be descoped)* — enforce refund-in-full if the minimum isn't met by the close date, close the offering at the date, and revert unsold tokens to the treasury if the max isn't reached.
+4. **Wallet authorization** *(future / stretch)* — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
 
 Allocation links are unauthenticated for now (security through obscurity); per-buyer link binding is deferred.
