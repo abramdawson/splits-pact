@@ -29,6 +29,8 @@ body { font-family: var(--font); background: var(--page-bg); color: var(--ink); 
 .t-muted { color: var(--muted); }
 .t-muted2 { color: var(--muted2); }
 .t-danger { color: var(--danger); }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(8px); background: var(--ink); color: var(--paper); font-size: 13px; padding: 8px 14px; opacity: 0; pointer-events: none; transition: opacity 150ms ease, transform 150ms ease; z-index: 20; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* fill-in-the-blank input */
 .blank {

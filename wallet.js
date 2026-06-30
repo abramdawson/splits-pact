@@ -135,16 +135,25 @@
     if (!account) return;
     try {
       await navigator.clipboard.writeText(account);
-      target.textContent = 'Copied';
-      setTimeout(() => {
-        if (target.isConnected) target.textContent = 'Copy address';
-      }, 1200);
+      closeMenu();
+      showToast('Address copied');
     } catch (err) {
-      target.textContent = 'Copy failed';
-      setTimeout(() => {
-        if (target.isConnected) target.textContent = 'Copy address';
-      }, 1200);
+      showToast('Could not copy address');
     }
+  }
+
+  function showToast(message) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.className = 'toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toast.classList.remove('show'), 1600);
   }
 
   async function prompt() {
