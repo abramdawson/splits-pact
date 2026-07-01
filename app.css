@@ -10,11 +10,24 @@
   --cta-bg: #111111; --cta-text: #ffffff; --cta-hover: #000000;
   --marker: #2563eb;
   --radius-large: 8px; --radius-default: 4px; --radius-small: 2px;
-  --font: 'Source Code Pro', ui-monospace, SFMono-Regular, monospace;
-  --letter-spacing: -0.04em;
+  --font: 'Inter', system-ui, sans-serif;
+  --letter-spacing: 0;
 }
-html[data-font="serif"] { --font: 'Source Serif 4', Georgia, serif; --letter-spacing: 0; }
-html[data-font="sans"] { --font: 'Source Sans 3', system-ui, sans-serif; --letter-spacing: 0; }
+html[data-style="chambers"] {
+  --page-bg: #f4f0e8; --paper: #fffdf7; --paper-border: #d8cdbb;
+  --ink: #1c1712; --muted: #756b5f; --muted2: #5e5347;
+  --field-bg: #f3ede3; --field-bg-focus: #ece3d6;
+  --line-strong: #1c1712; --line-dotted: #c6b8a5;
+  --table-line: #e7dccd; --table-edge: #7a6a58;
+  --row-hover: #f6efe5; --highlight: #fff1b8;
+  --del: #9b9388; --danger: #9f1d1d; --danger-bg: #f6e4dd;
+  --ok: #357a4f; --pending: #9a6a16;
+  --cta-bg: #1c1712; --cta-text: #fffdf7; --cta-hover: #090705;
+  --marker: #8a4b1c;
+  --font: 'Newsreader', Georgia, serif;
+  --letter-spacing: 0;
+}
+html[data-style="cipher"],
 html.dark {
   --page-bg: #0b0c0f; --paper: #15171c; --paper-border: #2a2f3a;
   --ink: #e7e7e7; --muted: #8b93a1; --muted2: #aab0bc;
@@ -26,6 +39,8 @@ html.dark {
   --ok: #57c98a; --pending: #e0b65a;
   --cta-bg: #e7e7e7; --cta-text: #15171c; --cta-hover: #ffffff;
   --marker: #3b82f6;
+  --font: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --letter-spacing: -0.04em;
 }
 body { font-family: var(--font); letter-spacing: var(--letter-spacing); background: var(--page-bg); color: var(--ink); }
 
@@ -139,7 +154,7 @@ body { font-family: var(--font); letter-spacing: var(--letter-spacing); backgrou
 
 @media print {
   @page { size: letter portrait; margin: 0.5in; }
-  :root, html.dark {
+  :root, html.dark, html[data-style="cipher"], html[data-style="chambers"] {
     --page-bg: #fff; --paper: #fff; --paper-border: #fff;
     --ink: #111; --muted: #3f3f46; --muted2: #27272a;
     --field-bg: #fff; --field-bg-focus: #fff;

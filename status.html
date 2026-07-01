@@ -7,11 +7,14 @@
 <script>
   (function () {
     try {
-      var s = localStorage.getItem('bc-theme');
-      var d = s ? s === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-      if (d) document.documentElement.classList.add('dark');
-      var f = localStorage.getItem('bc-font');
-      if (f && f !== 'mono') document.documentElement.setAttribute('data-font', f);
+      var style = localStorage.getItem('bc-style');
+      if (!style) {
+        var f = localStorage.getItem('bc-font');
+        var t = localStorage.getItem('bc-theme');
+        style = f === 'serif' ? 'chambers' : (t === 'dark' || f === 'mono' ? 'cipher' : 'clarity');
+      }
+      if (style && style !== 'clarity') document.documentElement.setAttribute('data-style', style);
+      if (style === 'cipher') document.documentElement.classList.add('dark');
     } catch (e) {}
   })();
 </script>
@@ -19,7 +22,7 @@
 <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:opsz,wght@6..72,200..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <style>
   .act { background: none; border: 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--marker); padding: 0; }
@@ -30,6 +33,8 @@
   .act.muted:hover { color: var(--marker); }
   .value-link { color: inherit; text-decoration: none; }
   .value-link:hover { color: var(--marker); text-decoration: underline; }
+  .cap-link { color: inherit; text-decoration: none; }
+  .cap-link:hover { color: var(--marker); text-decoration: underline; }
   .alloc-actions { display: inline-flex; align-items: baseline; gap: 12px; }
   .alloc-entry .blank { width: 100%; }
   .alloc-entry td { height: 31px; }
@@ -317,9 +322,13 @@ async function refreshOnchainOffering() {
       offeringAddress: r.offeringAddress,
       provider,
     });
-    const result = await PactAPI.syncOfferingState(r.id, state);
-    currentRaise = result.raise;
-    onchainOfferingState = { status: 'loaded' };
+    onchainOfferingState = { status: 'loaded', ...state };
+    try {
+      const result = await PactAPI.syncOfferingState(r.id, state);
+      currentRaise = result.raise;
+    } catch (syncErr) {
+      console.warn('Could not sync offering state', syncErr);
+    }
     render();
   } catch (err) {
     onchainOfferingState = { status: 'error', error: err.message || 'Could not read onchain offering state.' };
@@ -328,6 +337,7 @@ async function refreshOnchainOffering() {
 }
 
 function offeringSnapshot(r) {
+  if (onchainOfferingState && onchainOfferingState.status === 'loaded') return onchainOfferingState;
   const s = r && r.onchainOffering;
   return s && s.offeringAddress && String(s.offeringAddress).toLowerCase() === String(r.offeringAddress || '').toLowerCase()
     ? s
@@ -424,7 +434,8 @@ function statusHtml(status) {
 function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canManage) {
   if ((!r.offeringAddress && !debugActive()) || !onchainOffering || !connectedWallet) return [];
   if (onchainOffering.state === 2) return [];
-  const isOwner = isSameAddress(connectedWallet, onchainOffering.owner || r.issuerWallet);
+  const ownerAddress = onchainOffering.owner || null;
+  const isOwner = ownerAddress ? isSameAddress(connectedWallet, ownerAddress) : false;
   const claimable = Math.max(0, usdcBaseUnitsToDollars(onchainOffering.raisedUsdcBaseUnits) - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits));
   const pastClose = Date.now() > closeDate;
   const canTopUp = canManage && onchainOffering.state === 0 && (!pastClose || onchainOffering.minMet);
@@ -459,7 +470,7 @@ function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canM
   if (onchainOffering.state === 0) {
     const closeDisabled = !isOwner || !onchainOffering.minMet;
     const closeTooltip = !isOwner
-      ? 'Connect owner wallet to close round'
+      ? `Connect owner wallet${ownerAddress ? ` ${shortAddr(ownerAddress)}` : ''} to close round`
       : (!onchainOffering.minMet ? 'Minimum not yet reached' : '');
     actions.push({ action: 'close', label: 'Close round', cta: 'Close round', note: 'Withdraw funds and return unsold tokens to treasury', warning: true, disabled: closeDisabled, tooltip: closeTooltip });
   }
@@ -568,8 +579,8 @@ function capTableRowsFor(r, key, holders, canManage) {
       const isCurve = lower === bondingCurveAddress;
       const buyerName = canManage ? buyerNamesByWallet.get(lower) : null;
       const label = isCurve
-        ? `PACT offering: <a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`
-        : `${buyerName ? esc(buyerName) + ': ' : ''}<a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`;
+        ? `PACT offering: <a class="cap-link" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`
+        : `${buyerName ? esc(buyerName) + ': ' : ''}<a class="cap-link" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`;
       return `<tr${isCurve ? ' class="highlight"' : ''}>
         <td>${label}</td>
         <td class="num">${fmtTokens(holder.balance)}</td>
@@ -584,7 +595,7 @@ function capTableFooterFor(r, key, holders) {
   const loading = state && state.status === 'loading' && (!Array.isArray(state.holders) || !state.holders.length);
   const totalTokens = holders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
   const liquidSplitLink = r.liquidSplitAddress
-    ? `<a class="linkbtn" href="${splitsExplorerAccount(r.liquidSplitAddress)}" target="_blank" rel="noreferrer">${shortAddr(r.liquidSplitAddress)}</a>`
+    ? `<a class="cap-link" href="${splitsExplorerAccount(r.liquidSplitAddress)}" target="_blank" rel="noreferrer">${shortAddr(r.liquidSplitAddress)}</a>`
     : '<span class="t-muted">Not deployed</span>';
   return `<tfoot>
     <tr>
