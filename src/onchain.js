@@ -2,11 +2,20 @@ const {
   BASE_CHAIN_ID,
   BASE_CHAIN_ID_HEX,
   BASE_CHAIN_PARAMS,
+  BASE_USDC_ADDRESS,
   LIQUID_SPLIT_FACTORY_ADDRESS,
   TEMP_BONDING_CURVE_ADDRESS,
   ZERO_DISTRIBUTOR_FEE,
   buildLiquidSplitAllocations,
+  buildOfferingFactoryInputs,
+  deriveOfferingCurve,
+  toUsdcBaseUnits,
 } = require('./liquid-split-core');
+const {
+  OFFERING_FACTORY_ADDRESS,
+  OFFERING_FACTORY_ABI,
+  OFFERING_ABI,
+} = require('./generated/offering-contracts');
 
 const { decodeEventLog, decodeFunctionResult, encodeEventTopics, encodeFunctionData, getAddress, zeroAddress } = require('viem');
 
@@ -53,6 +62,28 @@ const LS1155_ABI = [
     name: 'balanceOf',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
+    type: 'function',
+  },
+];
+const ERC20_ABI = [
+  {
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ];
@@ -126,7 +157,36 @@ function decodeLiquidSplitAddress(receipt) {
   throw new Error('Liquid Split creation event was not found in the transaction receipt.');
 }
 
-async function rpcCall(method, params, rpcUrl) {
+function decodeOfferingCreated(receipt, factoryAddress) {
+  const normalizedFactory = getAddress(factoryAddress);
+  for (const log of (receipt && receipt.logs) || []) {
+    if (String(log.address || '').toLowerCase() !== normalizedFactory.toLowerCase()) continue;
+    try {
+      const event = decodeEventLog({
+        abi: OFFERING_FACTORY_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+      if (event.eventName === 'OfferingCreated' && event.args) {
+        return {
+          offeringAddress: getAddress(event.args.offering),
+          liquidSplitAddress: getAddress(event.args.liquidSplit),
+          paymentToken: getAddress(event.args.paymentToken),
+          raiseMin: Number(event.args.raiseMin),
+          closeDate: Number(event.args.closeDate),
+          priceStart: Number(event.args.priceStart),
+          priceSlope: Number(event.args.priceSlope),
+        };
+      }
+    } catch (err) {}
+  }
+  throw new Error('Offering creation event was not found in the transaction receipt.');
+}
+
+async function rpcCall(method, params, rpcUrl, provider) {
+  if (provider && !rpcUrl) {
+    return provider.request({ method, params });
+  }
   const res = await fetch(rpcUrl || BASE_CHAIN_PARAMS.rpcUrls[0], {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -135,6 +195,12 @@ async function rpcCall(method, params, rpcUrl) {
   const body = await res.json();
   if (body.error) throw new Error(body.error.message || 'Base RPC request failed.');
   return body.result;
+}
+
+async function readContract({ address, abi, functionName, args, rpcUrl, provider }) {
+  const data = encodeFunctionData({ abi, functionName, args });
+  const result = await rpcCall('eth_call', [{ to: getAddress(address), data }, 'latest'], rpcUrl, provider);
+  return decodeFunctionResult({ abi, functionName, data: result });
 }
 
 async function getLiquidSplitTokenBalance(options) {
@@ -146,7 +212,7 @@ async function getLiquidSplitTokenBalance(options) {
     functionName: 'balanceOf',
     args: [account, tokenId],
   });
-  const result = await rpcCall('eth_call', [{ to: liquidSplitAddress, data }, 'latest'], options && options.rpcUrl);
+  const result = await rpcCall('eth_call', [{ to: liquidSplitAddress, data }, 'latest'], options && options.rpcUrl, options && options.provider);
   return decodeFunctionResult({
     abi: LS1155_ABI,
     functionName: 'balanceOf',
@@ -168,6 +234,42 @@ async function getTransactionBlockNumber(txHash, rpcUrl) {
   if (!txHash) return null;
   const receipt = await rpcCall('eth_getTransactionReceipt', [txHash], rpcUrl);
   return receipt && receipt.blockNumber ? receipt.blockNumber : null;
+}
+
+async function getOfferingPurchaseFromTx(options) {
+  const txHash = options && options.txHash;
+  if (!txHash) throw new Error('Purchase transaction hash is required.');
+  const receipt = await rpcCall('eth_getTransactionReceipt', [txHash], options && options.rpcUrl, options && options.provider);
+  if (!receipt) throw new Error('Purchase transaction receipt was not found.');
+  return getOfferingPurchaseFromReceipt({
+    receipt,
+    offeringAddress: options && options.offeringAddress,
+    buyer: options && options.buyer,
+  });
+}
+
+async function getOfferingPurchaseFromReceipt(options) {
+  const receipt = options && options.receipt;
+  const offeringAddress = getAddress(options && options.offeringAddress);
+  const buyer = options && options.buyer ? getAddress(options.buyer) : null;
+  for (const log of receipt.logs || []) {
+    if (String(log.address || '').toLowerCase() !== offeringAddress.toLowerCase()) continue;
+    try {
+      const event = decodeEventLog({
+        abi: OFFERING_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+      if (event.eventName !== 'Bought' || !event.args) continue;
+      if (buyer && String(event.args.buyer || '').toLowerCase() !== buyer.toLowerCase()) continue;
+      return {
+        buyer: getAddress(event.args.buyer),
+        units: Number(event.args.units),
+        cost: Number(event.args.cost),
+      };
+    } catch (err) {}
+  }
+  throw new Error('Purchase event was not found in the transaction receipt.');
 }
 
 async function getLiquidSplitHolders(options) {
@@ -248,13 +350,229 @@ async function deployLiquidSplit(options) {
   };
 }
 
+async function createOffering(options) {
+  const provider = options && options.provider;
+  const issuance = options && options.issuance;
+  const owner = options && options.owner;
+  const factoryAddress = options && options.factoryAddress
+    || (typeof globalThis !== 'undefined' && globalThis.PACT_OFFERING_FACTORY_ADDRESS)
+    || OFFERING_FACTORY_ADDRESS;
+  if (!provider) throw new Error('Wallet provider is required.');
+  if (!owner) throw new Error('Connected wallet is required.');
+  if (!factoryAddress) throw new Error('Offering factory has not been deployed yet.');
+
+  await ensureBase(provider);
+  const normalizedOwner = getAddress(owner);
+  const treasury = getAddress(issuance.proceedsAddress);
+  const closeDate = Math.floor(Date.now() / 1000) + Number(issuance.minimum.deadlineDays) * 86400;
+  const curve = deriveOfferingCurve(issuance);
+  const inputs = buildOfferingFactoryInputs(issuance, { getAddress });
+  const data = encodeFunctionData({
+    abi: OFFERING_FACTORY_ABI,
+    functionName: 'createOffering',
+    args: [
+      BASE_USDC_ADDRESS,
+      BigInt(toUsdcBaseUnits(issuance.raise.min)),
+      BigInt(closeDate),
+      BigInt(curve.priceStart),
+      BigInt(curve.priceSlope),
+      treasury,
+      inputs.holderAccounts,
+      inputs.holderAllocations,
+      inputs.offeringUnits,
+    ],
+  });
+
+  const txHash = await provider.request({
+    method: 'eth_sendTransaction',
+    params: [{
+      from: normalizedOwner,
+      to: getAddress(factoryAddress),
+      data,
+      chainId: BASE_CHAIN_ID_HEX,
+    }],
+  });
+  const receipt = await waitForReceipt(provider, txHash, options);
+  if (receipt.status && normalizeChainId(receipt.status) === 0) {
+    throw new Error('Offering creation transaction reverted.');
+  }
+  const created = decodeOfferingCreated(receipt, factoryAddress);
+  return {
+    chainId: BASE_CHAIN_ID,
+    factoryAddress: getAddress(factoryAddress),
+    transactionHash: txHash,
+    closeDate,
+    curve,
+    holderAccounts: inputs.holderAccounts,
+    holderAllocations: inputs.holderAllocations,
+    offeringUnits: inputs.offeringUnits,
+    ...created,
+  };
+}
+
+async function getOfferingState(options) {
+  const offeringAddress = getAddress(options && options.offeringAddress);
+  const [remainingUnits, unitsSold, minMet, state, raised, withdrawn] = await Promise.all([
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'remainingUnits', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'unitsSold', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'minMet', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'state', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'raised', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'withdrawn', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+  ]);
+  return {
+    remainingUnits: Number(remainingUnits),
+    unitsSold: Number(unitsSold),
+    minMet,
+    state: Number(state),
+    raised: Number(raised),
+    withdrawn: Number(withdrawn),
+  };
+}
+
+async function getOfferingPurchaseState(options) {
+  const offeringAddress = getAddress(options && options.offeringAddress);
+  const remainingUnits = await readContract({
+    address: offeringAddress,
+    abi: OFFERING_ABI,
+    functionName: 'remainingUnits',
+    args: [],
+    rpcUrl: options && options.rpcUrl,
+    provider: options && options.provider,
+  });
+  const unitsSold = await readContract({
+    address: offeringAddress,
+    abi: OFFERING_ABI,
+    functionName: 'unitsSold',
+    args: [],
+    rpcUrl: options && options.rpcUrl,
+    provider: options && options.provider,
+  });
+  return {
+    remainingUnits: Number(remainingUnits),
+    unitsSold: Number(unitsSold),
+  };
+}
+
+function localCostFor(curve, sold, units) {
+  if (!units) return 0;
+  return units * curve.priceStart + curve.priceSlope * (sold * units + (units * (units - 1)) / 2);
+}
+
+async function quoteOfferingPurchase(options) {
+  const issuance = options && options.issuance;
+  const amountUsd = Number(options && options.amountUsd);
+  if (!issuance || !issuance.offeringAddress) throw new Error('Offering contract is not available.');
+  const state = await getOfferingPurchaseState({
+    offeringAddress: issuance.offeringAddress,
+    rpcUrl: options && options.rpcUrl,
+    provider: options && options.provider,
+  });
+  const curve = issuance.curveParams || deriveOfferingCurve(issuance);
+  const budget = toUsdcBaseUnits(amountUsd);
+  let units = 0;
+  for (let candidate = 1; candidate <= state.remainingUnits; candidate++) {
+    const cost = localCostFor(curve, state.unitsSold, candidate);
+    if (cost > budget) break;
+    units = candidate;
+  }
+  if (units <= 0) throw new Error('Allocation is too small to buy one whole Liquid Split unit at the current curve price.');
+  const cost = localCostFor(curve, state.unitsSold, units);
+  const maxCost = Math.ceil(cost * 1.01);
+  return { ...state, units, cost, maxCost };
+}
+
+async function buyOffering(options) {
+  const provider = options && options.provider;
+  const issuance = options && options.issuance;
+  const buyer = options && options.buyer;
+  const amountUsd = Number(options && options.amountUsd);
+  if (!provider) throw new Error('Wallet provider is required.');
+  if (!buyer) throw new Error('Connected wallet is required.');
+  if (!issuance || !issuance.offeringAddress) throw new Error('Offering contract is not available.');
+
+  await ensureBase(provider);
+  const normalizedBuyer = getAddress(buyer);
+  const offering = getAddress(issuance.offeringAddress);
+  const paymentToken = getAddress(issuance.paymentToken || BASE_USDC_ADDRESS);
+  const quote = await quoteOfferingPurchase({ issuance, amountUsd, provider, rpcUrl: options && options.rpcUrl });
+  const allowance = await readContract({
+    address: paymentToken,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [normalizedBuyer, offering],
+    provider,
+    rpcUrl: options && options.rpcUrl,
+  });
+
+  let approveTxHash = null;
+  if (allowance < BigInt(quote.maxCost)) {
+    approveTxHash = await provider.request({
+      method: 'eth_sendTransaction',
+      params: [{
+        from: normalizedBuyer,
+        to: paymentToken,
+        data: encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: 'approve',
+          args: [offering, BigInt(quote.maxCost)],
+        }),
+        chainId: BASE_CHAIN_ID_HEX,
+      }],
+    });
+    const approveReceipt = await waitForReceipt(provider, approveTxHash, options);
+    if (approveReceipt.status && normalizeChainId(approveReceipt.status) === 0) throw new Error('USDC approval reverted.');
+  }
+
+  const buyTxHash = await provider.request({
+    method: 'eth_sendTransaction',
+    params: [{
+      from: normalizedBuyer,
+      to: offering,
+      data: encodeFunctionData({
+        abi: OFFERING_ABI,
+        functionName: 'buy',
+        args: [BigInt(quote.units), BigInt(quote.maxCost)],
+      }),
+      chainId: BASE_CHAIN_ID_HEX,
+    }],
+  });
+  const buyReceipt = await waitForReceipt(provider, buyTxHash, options);
+  if (buyReceipt.status && normalizeChainId(buyReceipt.status) === 0) throw new Error('Offering purchase reverted.');
+  let purchase = null;
+  try {
+    purchase = await getOfferingPurchaseFromReceipt({
+      receipt: buyReceipt,
+      offeringAddress: offering,
+      buyer: normalizedBuyer,
+    });
+  } catch (err) {}
+  return {
+    ...quote,
+    ...(purchase ? { units: purchase.units, cost: purchase.cost } : {}),
+    approveTxHash,
+    buyTxHash,
+  };
+}
+
 window.PactLiquidSplit = {
   BASE_CHAIN_ID,
   BASE_CHAIN_ID_HEX,
   LIQUID_SPLIT_FACTORY_ADDRESS,
+  BASE_USDC_ADDRESS,
+  OFFERING_FACTORY_ADDRESS,
+  OFFERING_FACTORY_ABI,
+  OFFERING_ABI,
   TEMP_BONDING_CURVE_ADDRESS,
   buildLiquidSplitAllocations: issuance => buildLiquidSplitAllocations(issuance, { getAddress }),
+  buildOfferingFactoryInputs: issuance => buildOfferingFactoryInputs(issuance, { getAddress }),
+  deriveOfferingCurve,
   deployLiquidSplit,
+  createOffering,
+  getOfferingState,
+  quoteOfferingPurchase,
+  buyOffering,
+  getOfferingPurchaseFromTx,
   getLiquidSplitTokenBalance,
   getLiquidSplitHolders,
 };

@@ -70,8 +70,22 @@ function parseAmount(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parsePositiveInteger(value) {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : 0;
+}
+
+function parseNonnegativeInteger(value) {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 0 ? n : null;
+}
+
 function isAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
+}
+
+function isTxHash(value) {
+  return /^0x[a-fA-F0-9]{64}$/.test(String(value || '').trim());
 }
 
 function parseHolderAddress(holderId) {
@@ -215,14 +229,53 @@ function summarizeRaise(raise) {
   };
 }
 
+function summarizePurchase(raise, allocation) {
+  return {
+    raiseId: raise.id,
+    allocationId: allocation.id,
+    projectName: raise.projectName,
+    amountUsd: allocation.amountUsd,
+    fundedAt: allocation.fundedAt,
+    txHash: allocation.txHash,
+    tokensPurchased: allocation.tokensPurchased,
+    purchaseCostUsdcBaseUnits: allocation.purchaseCostUsdcBaseUnits,
+  };
+}
+
+function raiseWallets(raise) {
+  return [
+    raise && raise.issuerWallet,
+    raise && raise.proceedsAddress,
+    ...((raise && Array.isArray(raise.collaborators)) ? raise.collaborators : []),
+  ]
+    .filter(Boolean)
+    .map(wallet => String(wallet).toLowerCase());
+}
+
+function canAccessRaise(raise, wallet) {
+  return raiseWallets(raise).includes(String(wallet || '').toLowerCase());
+}
+
 function listRaises(db, input = {}) {
   const issuerWallet = String(typeof input === 'string' ? input : input.issuerWallet || '').toLowerCase();
   if (!isAddress(issuerWallet)) return { status: 400, body: { error: 'Issuer wallet is required.' } };
   const raises = db.prepare('SELECT data FROM raises ORDER BY created_at DESC').all()
     .map(row => JSON.parse(row.data))
-    .filter(raise => String(raise.issuerWallet || '').toLowerCase() === issuerWallet)
+    .filter(raise => canAccessRaise(raise, issuerWallet))
     .map(summarizeRaise);
   return { status: 200, body: { raises } };
+}
+
+function listPurchases(db, input = {}) {
+  const buyerWallet = String(typeof input === 'string' ? input : input.buyerWallet || '').toLowerCase();
+  if (!isAddress(buyerWallet)) return { status: 400, body: { error: 'Buyer wallet is required.' } };
+  const purchases = db.prepare('SELECT data FROM raises ORDER BY created_at DESC').all()
+    .map(row => JSON.parse(row.data))
+    .flatMap(raise => (raise.allocations || [])
+      .filter(allocation => allocation.status === 'funded' && String(allocation.buyerWallet || '').toLowerCase() === buyerWallet)
+      .map(allocation => summarizePurchase(raise, allocation)))
+    .sort((a, b) => (b.fundedAt || 0) - (a.fundedAt || 0));
+  return { status: 200, body: { purchases } };
 }
 
 function addAllocation(db, raiseId, input) {
@@ -269,13 +322,52 @@ function setAllocationFunded(db, raiseId, allocationId, funded, input = {}) {
     allocation.status = 'funded';
     allocation.fundedAt = Date.now();
     allocation.buyerWallet = input.buyerWallet;
+    if (isTxHash(input.txHash)) allocation.txHash = input.txHash;
+    else delete allocation.txHash;
+    const tokensPurchased = parsePositiveInteger(input.tokensPurchased);
+    const purchaseCostUsdcBaseUnits = parsePositiveInteger(input.purchaseCostUsdcBaseUnits);
+    if (tokensPurchased) allocation.tokensPurchased = tokensPurchased;
+    else delete allocation.tokensPurchased;
+    if (purchaseCostUsdcBaseUnits) allocation.purchaseCostUsdcBaseUnits = purchaseCostUsdcBaseUnits;
+    else delete allocation.purchaseCostUsdcBaseUnits;
   } else {
     allocation.status = 'allocated';
     delete allocation.fundedAt;
     delete allocation.buyerWallet;
+    delete allocation.txHash;
+    delete allocation.tokensPurchased;
+    delete allocation.purchaseCostUsdcBaseUnits;
   }
   writeRaise(db, raise);
   return { status: 200, body: { raise, allocation } };
+}
+
+function syncOfferingState(db, raiseId, input = {}) {
+  const raise = readRaise(db, raiseId);
+  if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
+  if (!isAddress(raise.offeringAddress)) return { status: 409, body: { error: 'Raise has no offering contract.' } };
+
+  const remainingUnits = parseNonnegativeInteger(input.remainingUnits);
+  const unitsSold = parseNonnegativeInteger(input.unitsSold);
+  const raised = parseNonnegativeInteger(input.raised);
+  const withdrawn = parseNonnegativeInteger(input.withdrawn);
+  const state = parseNonnegativeInteger(input.state);
+  if (remainingUnits == null || unitsSold == null || raised == null || withdrawn == null || state == null || state > 2) {
+    return { status: 400, body: { error: 'Valid offering state is required.' } };
+  }
+
+  raise.onchainOffering = {
+    syncedAt: Date.now(),
+    offeringAddress: raise.offeringAddress,
+    remainingUnits,
+    unitsSold,
+    raisedUsdcBaseUnits: raised,
+    withdrawnUsdcBaseUnits: withdrawn,
+    minMet: !!input.minMet,
+    state,
+  };
+  writeRaise(db, raise);
+  return { status: 200, body: { raise, onchainOffering: raise.onchainOffering } };
 }
 
 function sendResult(res, result) {
@@ -303,8 +395,16 @@ function createApp(options = {}) {
     sendResult(res, listRaises(db, req.query));
   });
 
+  app.get('/api/purchases', (req, res) => {
+    sendResult(res, listPurchases(db, req.query));
+  });
+
   app.get('/api/raises/:id', (req, res) => {
     sendResult(res, getRaise(db, req.params.id));
+  });
+
+  app.post('/api/raises/:id/offering-state', (req, res) => {
+    sendResult(res, syncOfferingState(db, req.params.id, req.body));
   });
 
   app.get('/api/liquid-splits/:address/holders', async (req, res) => {
@@ -347,6 +447,7 @@ if (require.main === module) {
     console.log(`PACT server listening on http://localhost:${port}`);
   });
   process.on('SIGTERM', () => server.close(() => process.exit(0)));
+  setInterval(() => {}, 60000);
 }
 
 module.exports = {
@@ -356,8 +457,10 @@ module.exports = {
   createRaise,
   getRaise,
   listRaises,
+  listPurchases,
   addAllocation,
   deleteAllocation,
   setAllocationFunded,
+  syncOfferingState,
   fetchLiquidSplitHoldersFromExplorer,
 };

@@ -9,6 +9,7 @@
   let statusTimer = null;
   let activeProvider = null;
   let issuances = null;
+  let purchases = null;
   const providers = [];
 
   const short = address => address ? address.slice(0, 6) + '...' + address.slice(-4) : '';
@@ -91,36 +92,62 @@
     return path === 'status.html' ? new URLSearchParams(location.search).get('id') : null;
   }
 
+  function currentPurchaseKey() {
+    const path = location.pathname.split('/').pop();
+    if (path !== 'buy.html') return null;
+    const params = new URLSearchParams(location.search);
+    return params.get('r') + ':' + params.get('a');
+  }
+
   function renderIssuanceMenu() {
     if (!issuances) return '<div class="wallet-menu-note">Loading issuances...</div>';
     const activeRaiseId = currentRaiseId();
+    const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
+    const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
     const rows = issuances.length
-      ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}"><span>${raise.projectName || 'Untitled issuance'}</span><span class="wallet-menu-dot${raise.id === activeRaiseId ? ' active' : ''}"></span></a>`).join('')
+      ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}"><span>${raise.projectName || 'Untitled issuance'}</span>${raise.id === activeRaiseId ? activeMark : inactiveMark}</a>`).join('')
       : '<div class="wallet-menu-note">No issuances yet</div>';
-    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html" class="wallet-menu-action">New issuance</a>';
+    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html" class="wallet-menu-action">+ New issuance</a>';
     return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
+  }
+
+  function renderPurchaseMenu() {
+    if (!purchases) return '<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div><div class="wallet-menu-note">Loading purchases...</div></div>';
+    const activeKey = currentPurchaseKey();
+    const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
+    const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
+    if (!purchases.length) return '';
+    const rows = purchases.map(purchase => {
+      const key = purchase.raiseId + ':' + purchase.allocationId;
+      return `<a href="buy.html?r=${encodeURIComponent(purchase.raiseId)}&a=${encodeURIComponent(purchase.allocationId)}"><span>${purchase.projectName || 'Untitled purchase'}</span>${key === activeKey ? activeMark : inactiveMark}</a>`;
+    }).join('');
+    return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div>${rows}</div>`;
   }
 
   function renderMenu() {
     if (!menu) return;
     menu.innerHTML = account
-      ? '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu()
+      ? '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu() + renderPurchaseMenu()
       : providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
   }
 
-  async function loadIssuances() {
-    if (!account || !window.PactAPI || !PactAPI.listRaises) {
+  async function loadWalletRecords() {
+    if (!account || !window.PactAPI) {
       issuances = [];
+      purchases = [];
       return;
     }
     issuances = null;
+    purchases = null;
     renderMenu();
-    try {
-      const result = await PactAPI.listRaises(account);
-      issuances = result.raises || [];
-    } catch (err) {
-      issuances = [];
-    }
+    await Promise.all([
+      PactAPI.listRaises
+        ? PactAPI.listRaises(account).then(result => { issuances = result.raises || []; }).catch(() => { issuances = []; })
+        : Promise.resolve().then(() => { issuances = []; }),
+      PactAPI.listPurchases
+        ? PactAPI.listPurchases(account).then(result => { purchases = result.purchases || []; }).catch(() => { purchases = []; })
+        : Promise.resolve().then(() => { purchases = []; }),
+    ]);
     renderMenu();
   }
 
@@ -128,7 +155,7 @@
     if (!menu) return;
     renderMenu();
     menu.classList.toggle('show');
-    if (account && menu.classList.contains('show')) loadIssuances();
+    if (account && menu.classList.contains('show')) loadWalletRecords();
   }
 
   async function copyAddress(target) {

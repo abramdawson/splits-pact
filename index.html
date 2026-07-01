@@ -20,7 +20,7 @@
 <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -31,7 +31,7 @@
     </button>
   </div>
 
-  <div class="min-h-screen flex justify-center items-start py-12 px-4">
+  <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
     <div class="paper w-full max-w-[820px] px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]">
 
       <!-- Version -->
@@ -78,7 +78,7 @@
       <p class="mb-3"><span class="font-bold">&sect;3. Capitalization.</span> The capital structure of the Project, before and after the Offering, shall be as set forth below:</p>
       <table class="exhibit mb-2">
         <thead>
-          <tr><th>Holder</th><th class="num">Before</th><th class="num">After</th><th class="num">Tokens</th><th></th></tr>
+          <tr><th class="w-[58%]">Holder</th><th class="num">Before</th><th class="num">After</th><th class="num">Tokens</th><th class="w-6"></th></tr>
         </thead>
         <tbody id="holders"></tbody>
         <tbody>
@@ -202,8 +202,8 @@ document.addEventListener('mouseout', e => {
 
 let uid = 0;
 let holders = [
-  { id: ++uid, name: '', pct: 50 },
-  { id: ++uid, name: '', pct: 50 },
+  { id: ++uid, name: '', pct: 50.0 },
+  { id: ++uid, name: '', pct: 50.0 },
 ];
 
 function fmtMoney(v) {
@@ -213,12 +213,15 @@ function fmtMoney(v) {
 }
 const fmtFull = v => '$' + Math.round(v).toLocaleString('en-US');
 const TOTAL_SHARES = 1000;          // 0.1% = 1 token
-const fmtPct = v => (Math.round(v * 10) / 10).toString() + '%';
+const fmtPct = v => oneDecimal(v) + '%';
+const oneDecimal = v => (Math.round((Number(v) || 0) * 10) / 10).toFixed(1);
 const fmtShares = v => Math.round(v).toLocaleString('en-US');
 const parseMoney = s => +String(s).replace(/[^0-9.]/g, '') || 0;
 function clamp1(el) {
+  el.value = el.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
   const [int, dec] = el.value.split('.');
   if (dec && dec.length > 1) el.value = int + '.' + dec.slice(0, 1);
+  if (Number(el.value) > 100) el.value = '100';
 }
 
 function attachMoney(el) {
@@ -237,10 +240,10 @@ function makeRow(h) {
   tr.dataset.id = h.id;
   tr.innerHTML = `
     <td><input type="text" class="blank w-full" data-k="name" value="${h.name}" placeholder="0x address..."></td>
-    <td class="num"><input type="number" class="blank w-14 text-right" data-k="pct" min="0" step="0.1" value="${h.pct}">%</td>
+    <td class="num"><input type="text" inputmode="decimal" class="blank w-12 text-right" data-k="pct" value="${oneDecimal(h.pct)}">%</td>
     <td class="num" data-post>—</td>
     <td class="num" data-shares>—</td>
-    <td class="num"><button class="delx" title="Remove">&times;</button></td>`;
+    <td class="num w-6"><button class="delx" title="Remove">&times;</button></td>`;
   tr.querySelectorAll('input').forEach(el => {
     el.setAttribute('autocomplete', 'off');
     el.addEventListener('input', e => {
@@ -248,6 +251,13 @@ function makeRow(h) {
       if (k === 'pct') { clamp1(e.target); h.pct = +e.target.value || 0; }
       else h.name = e.target.value;
       compute();
+    });
+    el.addEventListener('blur', e => {
+      if (e.target.dataset.k === 'pct') {
+        e.target.value = oneDecimal(e.target.value);
+        h.pct = +e.target.value || 0;
+        compute();
+      }
     });
   });
   tr.querySelector('.delx').addEventListener('click', () => {
@@ -258,7 +268,7 @@ function makeRow(h) {
 }
 
 $('addHolder').addEventListener('click', () => {
-  const h = { id: ++uid, name: '', pct: 0 };
+  const h = { id: ++uid, name: '', pct: 0.0 };
   holders.push(h);
   const tr = makeRow(h);
   $('holders').appendChild(tr);
@@ -376,8 +386,10 @@ function validate() {
   let beforeSum = 0;
   holders.forEach(h => {
     beforeSum += h.pct;
+    const pctInput = rowInput(h.id, 'pct');
     if (!isAddress(h.name)) { mark(rowInput(h.id, 'name'), 'Enter a valid 0x address.'); n++; }
     if (!(h.pct > 0)) { mark(rowInput(h.id, 'pct'), 'Enter a percentage greater than 0.'); n++; }
+    if (!/^\d+(\.\d)$/.test((pctInput && pctInput.value || '').trim())) { mark(pctInput, 'Enter exactly one decimal place.'); n++; }
   });
   if (!holders.length || Math.abs(beforeSum - 100) > 0.05) n++; // surfaced on the totals row
 
@@ -424,16 +436,22 @@ function buildIssuance() {
 
 async function saveIssuance(data) {
   if (!window.PactLiquidSplit) throw new Error('Onchain deployment module is unavailable.');
-  const deployment = await PactLiquidSplit.deployLiquidSplit({
+  const deployment = await PactLiquidSplit.createOffering({
     provider: PactWallet.provider,
     issuance: data,
     owner: connectedWallet,
   });
   data.chainId = deployment.chainId;
-  data.liquidSplitFactory = deployment.factoryAddress;
+  data.offeringFactory = deployment.factoryAddress;
+  data.offeringAddress = deployment.offeringAddress;
+  data.offeringTxHash = deployment.transactionHash;
+  data.paymentToken = deployment.paymentToken;
+  data.onchainCloseDate = deployment.closeDate;
+  data.curveParams = deployment.curve;
+  data.liquidSplitFactory = PactLiquidSplit.LIQUID_SPLIT_FACTORY_ADDRESS;
   data.liquidSplitAddress = deployment.liquidSplitAddress;
   data.liquidSplitTxHash = deployment.transactionHash;
-  data.bondingCurveAddress = PactLiquidSplit.TEMP_BONDING_CURVE_ADDRESS;
+  data.bondingCurveAddress = deployment.offeringAddress;
   data.onchainStatus = 'deployed';
   const raise = await PactAPI.createRaise(data);
   window.location.href = 'status.html?id=' + encodeURIComponent(raise.id);
@@ -448,7 +466,7 @@ $('createBtn').addEventListener('click', async () => {
   }
   const btn = $('createBtn');
   btn.disabled = true;
-  btn.textContent = 'Deploying Liquid Split...';
+  btn.textContent = 'Creating offering...';
   try {
     await saveIssuance(buildIssuance());
   } catch (err) {

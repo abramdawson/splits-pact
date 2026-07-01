@@ -4,3 +4,6 @@ data/
 .tmp/
 playwright-report/
 test-results/
+cache/
+out/
+broadcast/

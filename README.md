@@ -9,38 +9,36 @@
 - **`buy.html`** — the buyer-facing purchase page, opened via a unique per-buyer link.
 - **`chart.js`** — the shared bonding-curve chart (used on the creation page).
 - **`src/liquid-split-core.js`** — shared Liquid Split allocation constants and conversion logic.
-- **`src/onchain.js`** — viem-backed browser entrypoint for deploying the default Splits Liquid Split on Base.
+- **`src/onchain.js`** — viem-backed browser entrypoint for creating an on-chain offering, approving USDC, and buying from the offering on Base.
 - **`dist/onchain.bundle.js`** — generated browser bundle loaded by `index.html`.
 - **`app.css`** — shared styles, light/dark theme variables, and the mono / serif / sans font system.
 
 Theme and font preferences are held in `localStorage`. Raise and allocation state is persisted by the local API in SQLite.
 Issuers must connect a wallet before creating an issuance, and buyers must connect a wallet before purchasing an allocation. Wallet connection is used for identity and transaction submission; it does not auto-fill treasury, holder, buyer, or allocation address fields.
 
-## Liquid Split issuance
+## On-chain offering
 
-Creating an issuance now deploys a default Splits Liquid Split on Base before saving the local issuance record.
+Creating an issuance now sends one Base transaction to a PACT `OfferingFactory`. The factory atomically:
 
-The browser calls the official Base Liquid Split factory:
+1. Deploys a per-issuance `Offering` escrow contract.
+2. Calls the official Base Liquid Split factory.
+3. Allocates the offering bucket directly to the new `Offering`.
+4. Initializes the `Offering` with the created Liquid Split address.
+5. Emits `OfferingCreated`, which the browser decodes before saving the local issuance record.
+
+The factory uses the official Base Liquid Split factory:
 
 ```
 0xdEcd8B99b7F763e16141450DAa5EA414B7994831
 ```
 
-via:
+The deployed Liquid Split still uses the stock 1,000 ERC-1155 units with token id `0`. Current holder rows receive their calculated post-raise units, and the offered units sit inside the `Offering` contract until buyers purchase them.
 
-```
-createLiquidSplitClone(address[] accounts, uint32[] initAllocations, uint32 distributorFee, address owner)
-```
+The app prompts the connected wallet to switch to Base (`8453`) before sending the transaction. After the wallet transaction is mined, the client decodes the factory `OfferingCreated` event, then saves `chainId`, `offeringFactory`, `offeringAddress`, `offeringTxHash`, `paymentToken`, `curveParams`, `liquidSplitFactory`, `liquidSplitAddress`, `liquidSplitTxHash`, `bondingCurveAddress`, and `onchainStatus` on the issuance. If the wallet prompt is rejected, the transaction reverts, or the creation event is missing, the local issuance is not saved.
 
-The deployed Liquid Split uses the standard 1,000 ERC-1155 units. Current holder rows receive their calculated post-raise units, and the offering bucket is sent to the temporary bonding curve recipient:
+The status page treats the offering contract as the source of truth for offering state. When a wallet/provider is available, the browser reads `unitsSold`, `remainingUnits`, `raised`, `minMet`, `state`, and `withdrawn` from the `Offering`, then stores that snapshot on the local issuance record. The page uses that snapshot for raised amount, tokens sold, threshold status, current valuation, and the funded progress segment. Pending allocations remain local workflow records until purchased. The separate cap table section treats the Liquid Split as the source of truth for ownership: it reads current holder balances through the local `/api/liquid-splits/:address/holders` proxy, which calls the Splits Explorer public GraphQL API by default. If that indexed read fails, the browser falls back to direct Base RPC reads against `TransferSingle` logs plus current `balanceOf(holder, 0)` values. Older local issuances without onchain fields still render a target cap table from the saved issuance data.
 
-```
-0xc6C8F6E4A73B2971C725359bb595Da1306FE5257
-```
-
-The app prompts the connected wallet to switch to Base (`8453`) before sending the transaction. After the wallet transaction is mined, the client decodes the factory `CreateLS1155Clone` event, then saves `chainId`, `liquidSplitFactory`, `liquidSplitAddress`, `liquidSplitTxHash`, `bondingCurveAddress`, and `onchainStatus` on the issuance. If the wallet prompt is rejected, the transaction reverts, or the creation event is missing, the local issuance is not saved.
-
-The status page links the Liquid Split to the Splits explorer and the bonding curve recipient to BaseScan. Offering status and the progress bar remain allocation-workflow views for now: they are based on generated/funded allocations in the local API. The separate cap table section reads current Liquid Split holder ownership through the local `/api/liquid-splits/:address/holders` proxy, which calls the Splits Explorer public GraphQL API by default. If that indexed read fails, the browser falls back to direct Base RPC reads against `TransferSingle` logs plus current `balanceOf(holder, 0)` values. Older local issuances without onchain fields still render a target cap table from the saved issuance data.
+Buyer links now call the on-chain offering when `offeringAddress` is present. The browser reads offering state, converts the fixed dollar allocation into whole Liquid Split units, sends a USDC `approve` if allowance is insufficient, then calls `Offering.buy(unitsWanted, maxCost)`. After the buy transaction confirms, the local allocation is marked purchased so the issuer dashboard reflects the purchase.
 
 For local development, the public Explorer endpoint does not require an API key. For deployed use, set `SPLITS_EXPLORER_API_KEY` so the backend uses the keyed `/graphql` route with org-based rate limits instead of the public IP-based route:
 
@@ -81,6 +79,12 @@ npm run build:onchain
 
 ## Testing
 
+Run Solidity contract tests:
+
+```
+forge test
+```
+
 Run API/domain tests:
 
 ```
@@ -95,7 +99,27 @@ npm run test:e2e
 
 The end-to-end test creates an issuance, generates an allocation link, opens that buyer link in a separate browser context, purchases, and verifies the status page reflects the funded allocation.
 
-The browser test uses a mocked EIP-1193 wallet. It verifies that issuance creation requests a Base switch, sends `eth_sendTransaction` to the Liquid Split factory, decodes a mocked `CreateLS1155Clone` receipt log, and persists the resulting onchain metadata. It does not submit a real Base transaction.
+The browser test uses a mocked EIP-1193 wallet. It verifies that issuance creation requests a Base switch, sends `eth_sendTransaction` to the PACT `OfferingFactory`, decodes a mocked `OfferingCreated` receipt log, persists the resulting on-chain metadata, then drives a buyer approval and `buy()` call. It does not submit a real Base transaction.
+
+## Deploying the OfferingFactory
+
+The frontend reads the deployed factory address from `src/generated/offering-contracts.js` (`OFFERING_FACTORY_ADDRESS`). The generated ABI and bytecode are produced from Foundry artifacts:
+
+```
+npm run build:contracts
+```
+
+For Base mainnet, deploy the factory with the official Liquid Split factory address as the constructor argument:
+
+```
+forge create contracts/OfferingFactory.sol:OfferingFactory \
+  --rpc-url https://mainnet.base.org \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  --constructor-args 0xdEcd8B99b7F763e16141450DAa5EA414B7994831
+```
+
+After deployment, set `OFFERING_FACTORY_ADDRESS` in `src/generated/offering-contracts.js`, then run `npm run build:onchain` so `dist/onchain.bundle.js` contains the address used by the browser.
 
 ## Deploying later
 
@@ -114,9 +138,11 @@ The important production setting is `PACT_DB_PATH=/data/pact.sqlite`, with `/dat
 
 The big pieces between this prototype and something real:
 
-1. **Bonding-curve sale contract** — on-chain logic that holds the offering's tokens and sells them along the curve, with price and token count settled at the moment of purchase. The temporary bonding curve address is currently just a Base account that receives the offering's Liquid Split units.
-2. **Real purchase transaction** — wire the "Purchase" CTA to an actual payment to the treasury plus token issuance, replacing the simulated funding and the dummy transaction hash.
-3. **Threshold / close-date mechanics** *(stretch — may be descoped)* — enforce refund-in-full if the minimum isn't met by the close date, close the offering at the date, and revert unsold tokens to the treasury if the max isn't reached.
-4. **Wallet authorization** *(future / stretch)* — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
+1. **Round success / failure UI** — make below-threshold, secured, failed, and closed states obvious. The current `secured` secondary text next to `Open` is too subtle for a successful raise.
+2. **Owner actions** — expose `withdraw()` for claimable proceeds, `closeAndWithdraw()` for explicitly closing a successful round, and returned unsold Liquid Split units. Show claimable and withdrawn proceeds from the `Offering` contract.
+3. **Failure and refund flow** — expose `markFailed()` once the close date has passed without meeting the minimum, and add buyer-facing `refund()` for failed offerings. Explain clearly that refunds return USDC and do not move or burn Liquid Split units.
+4. **Allocation / purchase reconciliation** — for new purchases, keep payment-link buyer names connected to on-chain holder addresses. Do not backfill old local test records. Keep the cap table public because Liquid Split ownership is public, but only show buyer names to authorized issuer/treasury views.
+5. **Production deployment hardening** — wire Fly.io config against a persistent SQLite volume, configure `SPLITS_EXPLORER_API_KEY`, and document the production environment variables.
+6. **Wallet authorization** *(future / stretch)* — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
 
 Allocation links are unauthenticated for now (security through obscurity); per-buyer link binding is deferred.
