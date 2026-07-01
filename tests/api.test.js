@@ -11,6 +11,7 @@ const {
   deleteAllocation,
   setAllocationFunded,
   syncOfferingState,
+  syncCapTableState,
   listRaises,
   listPurchases,
   fetchLiquidSplitHoldersFromExplorer,
@@ -122,6 +123,33 @@ test('syncs offering contract state onto a raise', () => {
     const read = getRaise(db, created.body.id);
     assert.equal(read.body.onchainOffering.offeringAddress, input.offeringAddress);
     assert.equal(read.body.onchainOffering.remainingUnits, 176);
+  });
+});
+
+test('syncs cap table state onto a raise', () => {
+  withDb(db => {
+    const input = fixtureRaise();
+    input.chainId = 8453;
+    input.liquidSplitAddress = '0x0000000000000000000000000000000000001234';
+    input.bondingCurveAddress = '0x0000000000000000000000000000000000007777';
+    const created = createRaise(db, input);
+
+    const synced = syncCapTableState(db, created.body.id, {
+      chainId: 8453,
+      source: 'splits-explorer',
+      holders: [
+        { address: '0x0000000000000000000000000000000000000002', balance: 400 },
+        { address: '0x0000000000000000000000000000000000007777', balance: 200 },
+      ],
+    });
+
+    assert.equal(synced.status, 200);
+    assert.equal(synced.body.onchainCapTable.holders.length, 2);
+    assert.equal(synced.body.onchainCapTable.source, 'splits-explorer');
+
+    const read = getRaise(db, created.body.id);
+    assert.equal(read.body.onchainCapTable.liquidSplitAddress, input.liquidSplitAddress);
+    assert.equal(read.body.onchainCapTable.holders[1].balance, 200);
   });
 });
 

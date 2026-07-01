@@ -26,27 +26,63 @@
   .act:hover { text-decoration: underline; }
   .act.danger { color: var(--del); }
   .act.danger:hover { color: var(--danger); }
+  .act.muted { color: var(--del); }
+  .act.muted:hover { color: var(--marker); }
+  .value-link { color: inherit; text-decoration: none; }
+  .value-link:hover { color: var(--marker); text-decoration: underline; }
   .alloc-actions { display: inline-flex; align-items: baseline; gap: 12px; }
-  .alloc-form { border: 1px dotted var(--line-dotted); border-radius: var(--radius-default); padding: 16px; margin: 48px 0 18px; }
-  .alloc-form .blank { height: 34px; }
-  .alloc-form .cta { height: 34px; display: inline-flex; align-items: center; }
-  .offering-actions { border: 1px dotted var(--line-dotted); border-radius: var(--radius-default); padding: 14px 16px; margin-top: 24px; }
-  .offering-actions button { height: 34px; display: inline-flex; align-items: center; }
-  .status-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--radius-default); font-size: 12px; font-weight: 600; }
-  .status-chip.funding { background: var(--field-bg); color: var(--ink); }
-  .status-chip.secured { background: var(--ok); color: #fff; }
-  .status-chip.failed { background: var(--danger); color: #fff; }
-  .status-chip.closed { background: var(--ink); color: var(--paper); }
+  .alloc-entry .blank { width: 100%; }
+  .alloc-entry td { height: 31px; }
+  .exhibit tr.alloc-entry td { border-bottom: 1px solid var(--table-line); }
+  .offering-actions { margin-top: 28px; }
+  .offering-action-group { border: 1px solid var(--paper-border); border-radius: var(--radius-large); overflow: visible; }
+  .offering-action-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 5px 8px 5px 10px; }
+  .offering-action-row + .offering-action-row { border-top: 1px solid var(--paper-border); }
+  .offering-action-copy { min-width: 0; }
+  .offering-action-label { font-weight: 450; }
+  .offering-action-row button { height: 34px; display: inline-flex; align-items: center; flex: 0 0 auto; }
+  .secondary-action { border: 1px solid var(--paper-border); border-radius: var(--radius-default); background: var(--paper); color: var(--ink); gap: 8px; }
+  .secondary-action:hover { background: var(--field-bg); }
+  .secondary-action svg { width: 14px; height: 14px; }
+  .warning-action { border: 1px solid var(--paper-border); border-radius: var(--radius-default); background: var(--paper); color: var(--danger); gap: 8px; }
+  .warning-action:hover { background: var(--field-bg); }
+  .offering-action-row button:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(1); }
+  .offering-action-row .cta:disabled:hover { background: var(--cta-bg); }
+  .offering-action-row .secondary-action:disabled:hover,
+  .offering-action-row .warning-action:disabled:hover { background: var(--paper); }
+  @media (max-width: 560px) {
+    .offering-action-row { align-items: flex-start; flex-direction: column; gap: 12px; }
+  }
+  .status-state { position: relative; display: inline; padding-left: 20px; }
+  .status-dot { position: absolute; left: 0; top: 50%; width: 14px; height: 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: #fff; transform: translateY(-50%); }
+  .status-dot svg { width: 10px; height: 10px; }
+  .status-dot.secured { background: var(--ok); }
+  .status-dot.closed { background: var(--ink); }
+  .status-dot.failed { background: var(--danger); }
+  .status-dot.funding { background: var(--muted); }
   .alloc-table { table-layout: fixed; }
   .alloc-table td:nth-child(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .alloc-table th:nth-child(2), .alloc-table td:nth-child(2) { width: 100px; }
   .alloc-table th:nth-child(3), .alloc-table td:nth-child(3) { width: 300px; }
   .alloc-table th:nth-child(4), .alloc-table td:nth-child(4) { width: 140px; }
   .tokencell { position: relative; text-decoration: underline dotted; text-decoration-color: var(--muted); text-underline-offset: 3px; }
-  .tokencell .tip2 { position: absolute; bottom: calc(100% + 8px); right: 0; white-space: nowrap; background: var(--ink); color: var(--paper); font-size: 11px; line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; text-decoration: none; }
-  .tokencell .tip2::after { content: ''; position: absolute; top: 100%; right: 12px; border: 4px solid transparent; border-top-color: var(--ink); }
+  .tokencell .tip2 { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: 11px; line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; text-decoration: none; }
   .tokencell:hover .tip2 { opacity: 1; }
+  .action-tip-wrap { position: relative; display: inline-flex; flex: 0 0 auto; }
+  .action-tip { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: 11px; line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; }
+  .action-tip-wrap:hover .action-tip { opacity: 1; }
   .notice { border: 1px dotted var(--line-dotted); padding: 14px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+  .debug-menu { position: fixed; right: 16px; bottom: 16px; z-index: 30; display: none; }
+  .debug-menu.show { display: block; }
+  .debug-toggle { height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-default); background: var(--ink); color: var(--paper); font-family: inherit; font-size: 12px; cursor: pointer; }
+  .debug-panel { position: absolute; right: 0; bottom: 40px; width: 190px; padding: 2px; border-radius: var(--radius-default); background: #202020; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.18); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 120ms ease, transform 120ms ease; }
+  .debug-panel.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .debug-label { padding: 6px 8px 4px; color: rgba(255,255,255,.55); font-size: 11px; font-weight: 500; }
+  .debug-panel button { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: var(--radius-small); padding: 5px 8px; background: transparent; color: #fff; font-family: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+  .debug-panel button:hover { background: var(--link); }
+  .debug-check { width: 12px; height: 12px; opacity: 0; position: relative; }
+  .debug-check::after { content: ''; position: absolute; left: 3px; top: 1px; width: 5px; height: 9px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .debug-panel button.active .debug-check { opacity: 1; }
 </style>
 </head>
 <body>
@@ -63,6 +99,20 @@
     </div>
   </div>
   <div id="toast" class="toast"></div>
+  <div id="debugMenu" class="debug-menu">
+    <button id="debugToggle" class="debug-toggle" type="button">Debug</button>
+    <div id="debugPanel" class="debug-panel">
+      <div class="debug-label">Offering state</div>
+      <button type="button" data-debug-state="live"><span>Live</span><span class="debug-check" aria-hidden="true"></span></button>
+      <button type="button" data-debug-state="loading"><span>Loading</span><span class="debug-check" aria-hidden="true"></span></button>
+      <button type="button" data-debug-state="error"><span>Read failed</span><span class="debug-check" aria-hidden="true"></span></button>
+      <button type="button" data-debug-state="funding"><span>Funding</span><span class="debug-check" aria-hidden="true"></span></button>
+      <button type="button" data-debug-state="secured"><span>Secured</span><span class="debug-check" aria-hidden="true"></span></button>
+      <button type="button" data-debug-state="withdrawn"><span>Withdrawn</span><span class="debug-check" aria-hidden="true"></span></button>
+      <button type="button" data-debug-state="failed"><span>Failed</span><span class="debug-check" aria-hidden="true"></span></button>
+      <button type="button" data-debug-state="closed"><span>Closed</span><span class="debug-check" aria-hidden="true"></span></button>
+    </div>
+  </div>
 
 <script src="api.js"></script>
 <script src="wallet.js"></script>
@@ -80,15 +130,17 @@ function fmtMoney(n) {
     maximumFractionDigits: 2,
   });
 }
+const fmtDollars = n => '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtTokens = n => Math.round(n).toLocaleString('en-US');
 const fmtPct = n => Number(n || 0).toFixed(1) + '%';
 const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const fmtMonthYear = ts => new Date(ts).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 const fmtPrice = p => '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtTokenPrice = p => '$' + p.toLocaleString('en-US', { minimumFractionDigits: p > 0 && p < 1 ? 4 : 2, maximumFractionDigits: p > 0 && p < 1 ? 4 : 2 });
 const fmtShort = ts => { const d = new Date(ts); return d.getDate() + '-' + d.toLocaleDateString('en-US', { month: 'short' }); };
 const shortAddr = a => a && a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : (a || '');
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
+const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : ''; };
 const basescanAddress = address => 'https://basescan.org/address/' + encodeURIComponent(address);
 const basescanTx = tx => 'https://basescan.org/tx/' + encodeURIComponent(tx);
 const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/' + encodeURIComponent(address) + '/?chainId=8453';
@@ -96,7 +148,10 @@ const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/'
 const raiseId = new URLSearchParams(location.search).get('id');
 let currentRaise = null;
 let onchainCapTableState = null;
+let onchainOfferingState = null;
 let connectedWallet = null;
+let debugOfferingState = 'live';
+let allocationEntryOpen = false;
 
 function getRaise() { return currentRaise; }
 function accessWallets(r) {
@@ -120,10 +175,13 @@ async function loadRaise() {
   } catch (err) {
     currentRaise = null;
   }
-  onchainCapTableState = null;
+  onchainCapTableState = cachedCapTableState(currentRaise);
+  onchainOfferingState = null;
   render();
-  refreshOnchainOffering();
-  refreshOnchainCapTable();
+  (async () => {
+    await refreshOnchainOffering();
+    refreshOnchainCapTable();
+  })();
 }
 
 // fraction of the project sold once a cumulative $R has been raised along the curve
@@ -152,22 +210,60 @@ function tokenMath(r) {
   return { tokensById, fundedTotal: cum, allocatedTotal };
 }
 
+function offeringCurveParams(r) {
+  if (r && r.curveParams && Number(r.curveParams.priceStart) > 0) return r.curveParams;
+  const floor = Number(r && r.valuation && r.valuation.floor);
+  const ceiling = Number(r && r.valuation && r.valuation.ceiling);
+  const offeringUnits = Number(r && r.newMoney && r.newMoney.tokens);
+  if (!(floor > 0) || !(ceiling >= floor) || !(offeringUnits > 0)) return null;
+  const priceStart = Math.max(1, Math.floor(floor * 1000000 / 1000));
+  const slopeRaw = Math.floor((ceiling - floor) * 1000000 / 1000 / offeringUnits);
+  const priceSlope = ceiling > floor ? Math.max(1, slopeRaw) : 0;
+  return { priceStart, priceSlope };
+}
+
+function costForUnits(curve, sold, units) {
+  if (!curve || !(units > 0)) return 0;
+  return units * Number(curve.priceStart || 0) + Number(curve.priceSlope || 0) * (sold * units + (units * (units - 1)) / 2);
+}
+
+function valuationForUnitIndex(curve, unitIndex, totalTokens) {
+  if (!curve) return 0;
+  const price = Number(curve.priceStart || 0) + Number(curve.priceSlope || 0) * Math.max(0, Number(unitIndex || 0));
+  return price * Number(totalTokens || 0) / 1000000;
+}
+
 async function refreshOnchainCapTable() {
   const r = getRaise();
   if (!r || !r.liquidSplitAddress || !r.bondingCurveAddress || !window.PactAPI) return;
   const key = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
-  onchainCapTableState = { key, status: 'loading' };
+  const previous = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : cachedCapTableState(r);
+  onchainCapTableState = { ...(previous || {}), key, status: 'loading' };
   render();
   try {
     const result = await PactAPI.getLiquidSplitHolders(r.liquidSplitAddress, r.chainId || 8453);
     const holders = result.holders || [];
     const curve = holders.find(holder => String(holder.address || '').toLowerCase() === String(r.bondingCurveAddress || '').toLowerCase());
     onchainCapTableState = { key, status: 'loaded', source: result.source || 'splits-explorer', curveBalance: curve ? Number(curve.balance) : 0, holders };
+    render();
+    await persistCapTableState(r.id, {
+      holders,
+      source: result.source || 'splits-explorer',
+      chainId: result.chainId || r.chainId || 8453,
+    });
   } catch (explorerErr) {
     try {
-      onchainCapTableState = await readOnchainCapTableFromRpc(r, key);
+      const rpcState = await readOnchainCapTableFromRpc(r, key);
+      onchainCapTableState = rpcState;
+      render();
+      await persistCapTableState(r.id, {
+        holders: rpcState.holders,
+        source: rpcState.source,
+        chainId: r.chainId || 8453,
+      });
     } catch (rpcErr) {
       onchainCapTableState = {
+        ...(previous || {}),
         key,
         status: 'error',
         error: rpcErr.message || explorerErr.message || 'Could not read onchain cap table.',
@@ -177,11 +273,45 @@ async function refreshOnchainCapTable() {
   render();
 }
 
+async function persistCapTableState(raiseId, state) {
+  if (!window.PactAPI || !PactAPI.syncCapTableState) return;
+  try {
+    const synced = await PactAPI.syncCapTableState(raiseId, state);
+    currentRaise = synced.raise;
+    const cached = cachedCapTableState(currentRaise);
+    if (cached) onchainCapTableState = cached;
+  } catch (err) {
+    console.warn('Could not cache cap table state', err);
+  }
+}
+
+function cachedCapTableState(r) {
+  const cached = r && r.onchainCapTable;
+  if (!cached || !Array.isArray(cached.holders) || !cached.holders.length) return null;
+  if (String(cached.liquidSplitAddress || '').toLowerCase() !== String(r.liquidSplitAddress || '').toLowerCase()) return null;
+  if (cached.bondingCurveAddress && String(cached.bondingCurveAddress).toLowerCase() !== String(r.bondingCurveAddress || '').toLowerCase()) return null;
+  const curve = cached.holders.find(holder => String(holder.address || '').toLowerCase() === String(r.bondingCurveAddress || '').toLowerCase());
+  return {
+    key: r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress,
+    status: 'loaded',
+    source: cached.source || 'cache',
+    syncedAt: cached.syncedAt,
+    curveBalance: curve ? Number(curve.balance) : 0,
+    holders: cached.holders,
+  };
+}
+
 async function refreshOnchainOffering() {
   const r = getRaise();
   if (!r || !r.offeringAddress || !window.PactLiquidSplit || !window.PactAPI) return;
   const provider = window.PactWallet && PactWallet.provider;
-  if (!provider) return;
+  if (!provider) {
+    onchainOfferingState = { status: 'wallet-required' };
+    render();
+    return;
+  }
+  onchainOfferingState = { status: 'loading' };
+  render();
   try {
     const state = await PactLiquidSplit.getOfferingState({
       offeringAddress: r.offeringAddress,
@@ -189,8 +319,12 @@ async function refreshOnchainOffering() {
     });
     const result = await PactAPI.syncOfferingState(r.id, state);
     currentRaise = result.raise;
+    onchainOfferingState = { status: 'loaded' };
     render();
-  } catch (err) {}
+  } catch (err) {
+    onchainOfferingState = { status: 'error', error: err.message || 'Could not read onchain offering state.' };
+    render();
+  }
 }
 
 function offeringSnapshot(r) {
@@ -198,6 +332,49 @@ function offeringSnapshot(r) {
   return s && s.offeringAddress && String(s.offeringAddress).toLowerCase() === String(r.offeringAddress || '').toLowerCase()
     ? s
     : null;
+}
+
+function debugActive() {
+  return ['localhost', '127.0.0.1'].includes(location.hostname) && debugOfferingState !== 'live';
+}
+
+function debugOfferingSnapshot(r, live) {
+  if (!debugActive() || ['loading', 'error'].includes(debugOfferingState)) return live;
+  const offerTokens = Math.round(r.maxDilutionPct / 100 * r.totalTokens);
+  const base = {
+    syncedAt: Date.now(),
+    offeringAddress: r.offeringAddress || '0x0000000000000000000000000000000000000000',
+    remainingUnits: offerTokens,
+    unitsSold: 0,
+    raisedUsdcBaseUnits: 0,
+    withdrawnUsdcBaseUnits: 0,
+    raiseMinUsdcBaseUnits: Math.round(r.raise.min * 1000000),
+    closeDate: Math.floor((Date.now() + 7 * 86400000) / 1000),
+    owner: r.issuerWallet,
+    treasury: r.proceedsAddress,
+    minMet: false,
+    state: 0,
+    ...(live || {}),
+  };
+  const minBase = Math.round(r.raise.min * 1000000);
+  const securedBase = Math.max(minBase, Math.round(Math.min(r.raise.max, r.raise.min * 1.2) * 1000000));
+  const halfUnits = Math.max(1, Math.floor(offerTokens / 2));
+  if (debugOfferingState === 'funding') {
+    return { ...base, unitsSold: Math.max(1, Math.floor(offerTokens / 4)), remainingUnits: offerTokens - Math.max(1, Math.floor(offerTokens / 4)), raisedUsdcBaseUnits: Math.floor(minBase / 2), withdrawnUsdcBaseUnits: 0, minMet: false, state: 0 };
+  }
+  if (debugOfferingState === 'secured') {
+    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raisedUsdcBaseUnits: securedBase, withdrawnUsdcBaseUnits: 0, minMet: true, state: 0 };
+  }
+  if (debugOfferingState === 'withdrawn') {
+    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raisedUsdcBaseUnits: securedBase, withdrawnUsdcBaseUnits: securedBase, minMet: true, state: 0 };
+  }
+  if (debugOfferingState === 'failed') {
+    return { ...base, unitsSold: Math.max(1, Math.floor(offerTokens / 4)), remainingUnits: offerTokens - Math.max(1, Math.floor(offerTokens / 4)), raisedUsdcBaseUnits: Math.floor(minBase / 2), withdrawnUsdcBaseUnits: 0, closeDate: Math.floor((Date.now() - 86400000) / 1000), minMet: false, state: 1 };
+  }
+  if (debugOfferingState === 'closed') {
+    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raisedUsdcBaseUnits: securedBase, withdrawnUsdcBaseUnits: securedBase, minMet: true, state: 2 };
+  }
+  return live;
 }
 
 function usdcBaseUnitsToDollars(value) {
@@ -209,52 +386,124 @@ function isSameAddress(a, b) {
 }
 
 function offeringStatus(onchainOffering, open, secured) {
-  if (onchainOffering && onchainOffering.state === 1) return { label: 'Failed', tone: 'failed', note: 'Refunds are available to buyers with deposits.' };
-  if (onchainOffering && onchainOffering.state === 2) return { label: 'Closed', tone: 'closed', note: 'The round has been closed by the owner.' };
-  if (secured) return { label: 'Secured', tone: 'secured', note: 'Minimum reached. Proceeds can be withdrawn to treasury.' };
-  if (!open) return { label: 'Below threshold', tone: 'failed', note: 'Close date has passed without meeting the minimum.' };
-  return { label: 'Funding', tone: 'funding', note: 'Minimum has not been reached yet.' };
+  if (onchainOffering && onchainOffering.state === 1) return { label: 'Failed', tone: 'failed', note: 'Minimum amount not met by close date' };
+  if (onchainOffering && onchainOffering.state === 2) return { label: 'Closed', tone: 'closed', note: 'Round closed' };
+  if (secured) return { label: 'Secured', tone: 'secured', note: 'Minimum reached' };
+  if (!open) return { label: 'Below minimum', tone: 'failed', note: 'Close date passed' };
+  return { label: 'Funding', tone: 'funding', note: 'Minimum not yet reached' };
 }
 
-function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate) {
-  if (!r.offeringAddress || !onchainOffering || !connectedWallet) return [];
+function onchainStatusFallback(r, onchainOffering, localStatus) {
+  if (debugOfferingState === 'loading') return { label: 'Loading...', tone: 'loading', note: '' };
+  if (debugOfferingState === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Reconnect your wallet and refresh' };
+  if (!r.offeringAddress || onchainOffering) return localStatus;
+  if (onchainOfferingState && onchainOfferingState.status === 'loading') {
+    return { label: 'Loading...', tone: 'loading', note: '' };
+  }
+  if (onchainOfferingState && onchainOfferingState.status === 'wallet-required') {
+    return { label: 'Connect wallet', tone: 'funding', note: 'Contract read required' };
+  }
+  if (onchainOfferingState && onchainOfferingState.status === 'error') {
+    return { label: 'Contract read failed', tone: 'failed', note: 'Reconnect your wallet and refresh' };
+  }
+  return { label: 'Loading...', tone: 'loading', note: '' };
+}
+
+function statusHtml(status) {
+  if (status.tone === 'loading') return '<span class="t-muted">Loading...</span>';
+  const icons = {
+    secured: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>',
+    closed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12h10"/></svg>',
+    failed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    funding: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"/></svg>',
+  };
+  const tone = ['secured', 'closed', 'failed', 'funding'].includes(status.tone) ? status.tone : 'funding';
+  return `<span class="status-state"><span class="status-dot ${tone}" aria-hidden="true">${icons[tone]}</span><span>${status.label}</span></span>${status.note ? `<span class="t-muted">${status.note}</span>` : ''}`;
+}
+
+function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canManage) {
+  if ((!r.offeringAddress && !debugActive()) || !onchainOffering || !connectedWallet) return [];
+  if (onchainOffering.state === 2) return [];
   const isOwner = isSameAddress(connectedWallet, onchainOffering.owner || r.issuerWallet);
   const claimable = Math.max(0, usdcBaseUnitsToDollars(onchainOffering.raisedUsdcBaseUnits) - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits));
   const pastClose = Date.now() > closeDate;
+  const canTopUp = canManage && onchainOffering.state === 0 && (!pastClose || onchainOffering.minMet);
+  const refundableAllocations = (r.allocations || []).filter(a => a.status === 'funded' && a.buyerWallet);
+  const refundBuyers = Array.from(new Set(refundableAllocations.map(a => String(a.buyerWallet).toLowerCase())));
+  const refundTotal = refundableAllocations.reduce((sum, a) => {
+    const baseUnits = Number(a.purchaseCostUsdcBaseUnits || 0);
+    return sum + (baseUnits > 0 ? usdcBaseUnitsToDollars(baseUnits) : Number(a.amountUsd || 0));
+  }, 0);
   const actions = [];
-  if (onchainOffering.minMet && claimable > 0) {
-    actions.push({ action: 'withdraw', label: 'Withdraw proceeds', note: 'Permissionless; sends USDC to treasury.' });
+  if (onchainOffering.state === 0 || onchainOffering.minMet) {
+    const withdrawDisabled = !onchainOffering.minMet || claimable <= 0;
+    const withdrawTooltip = !onchainOffering.minMet
+      ? 'Minimum not yet reached'
+      : (claimable <= 0 ? 'No funds available to withdraw' : '');
+    actions.push({ action: 'withdraw', label: 'Withdraw proceeds', cta: `Withdraw ${fmtMoney(claimable)}`, note: 'Transfer raised funds to your treasury', disabled: withdrawDisabled, tooltip: withdrawTooltip });
   }
-  if (isOwner && onchainOffering.state === 0 && onchainOffering.minMet) {
-    actions.push({ action: 'close', label: 'Close round', note: 'Owner only; withdraws proceeds and returns unsold tokens to treasury.' });
+  if (canTopUp) {
+    actions.push({ action: 'top-up', label: 'Increase offering', cta: shortAddr(r.offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' });
   }
   if (onchainOffering.state === 0 && !onchainOffering.minMet && pastClose) {
-    actions.push({ action: 'mark-failed', label: 'Mark failed', note: 'Permissionless after close date if minimum was not met.' });
+    actions.push({ action: 'mark-failed', label: 'Mark failed', cta: 'Mark failed', note: 'Enable refunds' });
+  }
+  if (onchainOffering.state === 1) {
+    const refundDisabled = !isOwner || refundBuyers.length === 0;
+    const refundTooltip = !isOwner
+      ? 'Connect owner wallet to refund all'
+      : (refundBuyers.length === 0 ? 'No buyer wallets available to refund' : '');
+    const buyerLabel = refundBuyers.length === 1 ? '1 buyer' : `${refundBuyers.length} buyers`;
+    actions.push({ action: 'refund-all', label: 'Refund buyers', cta: `Refund ${fmtMoney(refundTotal)}`, note: `Return deposits to all ${buyerLabel}`, disabled: refundDisabled, tooltip: refundTooltip });
+  }
+  if (onchainOffering.state === 0) {
+    const closeDisabled = !isOwner || !onchainOffering.minMet;
+    const closeTooltip = !isOwner
+      ? 'Connect owner wallet to close round'
+      : (!onchainOffering.minMet ? 'Minimum not yet reached' : '');
+    actions.push({ action: 'close', label: 'Close round', cta: 'Close round', note: 'Withdraw funds and return unsold tokens to treasury', warning: true, disabled: closeDisabled, tooltip: closeTooltip });
   }
   return actions;
+}
+
+function disabledContractReadActions(actions, tooltip) {
+  const disabled = actions.length ? actions : [
+    { action: 'withdraw', label: 'Withdraw proceeds', cta: 'Withdraw', note: 'Transfer raised funds to your treasury' },
+    { action: 'top-up', label: 'Increase offering', cta: shortAddr(getRaise() && getRaise().offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' },
+    { action: 'close', label: 'Close round', cta: 'Close round', note: 'Withdraw funds and return unsold tokens to treasury', warning: true },
+  ];
+  return disabled.map(action => ({ ...action, disabled: true, tooltip }));
 }
 
 function offeringActionsHtml(actions) {
   if (!actions.length) return '';
   return `<div class="offering-actions no-print">
     <div class="font-bold mb-2">Offering actions</div>
-    <div class="flex flex-wrap gap-2">
-      ${actions.map(action => `<button class="cta px-4 text-[13px] font-semibold" data-offering-action="${action.action}" type="button">${action.label}</button>`).join('')}
+    <div class="offering-action-group">
+      ${actions.map(action => `<div class="offering-action-row">
+      <div class="offering-action-copy">
+        <div class="offering-action-label">${action.label}</div>
+        <div class="t-muted text-[13px]">${action.note}</div>
+      </div>
+      <span class="action-tip-wrap"><button class="${action.warning ? 'warning-action' : (action.secondary ? 'secondary-action' : 'cta')} px-4 text-[13px] font-semibold" data-offering-action="${action.action}" type="button"${action.disabled ? ' disabled' : ''}>${action.cta}${action.icon === 'copy' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' : ''}</button>${action.tooltip ? `<span class="action-tip">${esc(action.tooltip)}</span>` : ''}</span>
+    </div>`).join('')}
     </div>
-    <p class="t-muted text-[12px] mt-2">${actions.map(action => action.note).join(' ')}</p>
   </div>`;
 }
 
 async function readOnchainCapTableFromRpc(r, key) {
   if (!window.PactLiquidSplit) throw new Error('Onchain bundle is unavailable.');
+  const provider = window.PactWallet && PactWallet.provider;
     const [curveBalance, holders] = await Promise.all([
       PactLiquidSplit.getLiquidSplitTokenBalance({
         liquidSplitAddress: r.liquidSplitAddress,
         account: r.bondingCurveAddress,
+        provider,
       }),
       PactLiquidSplit.getLiquidSplitHolders({
         liquidSplitAddress: r.liquidSplitAddress,
         deploymentTxHash: r.liquidSplitTxHash,
+        provider,
       }),
     ]);
   return { key, status: 'loaded', curveBalance: Number(curveBalance), holders, source: 'rpc' };
@@ -284,7 +533,7 @@ function copy(text, msg) {
 function capTableHoldersFor(r, key) {
   const bondingCurveAddress = String(r.bondingCurveAddress || '').toLowerCase();
   const state = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : null;
-  const holders = state && state.status === 'loaded'
+  const holders = state && Array.isArray(state.holders) && state.holders.length
     ? state.holders
     : [
         ...(r.holders || []).map(h => ({ address: h.address, balance: h.tokens })),
@@ -304,7 +553,7 @@ function capTableRowsFor(r, key, holders, canManage) {
   const buyerNamesByWallet = new Map((r.allocations || [])
     .filter(a => a.status === 'funded' && a.buyerWallet && a.name)
     .map(a => [String(a.buyerWallet).toLowerCase(), a.name]));
-  if (state && state.status === 'loading') {
+  if (state && state.status === 'loading' && (!Array.isArray(state.holders) || !state.holders.length)) {
     return '<tr><td colspan="3" class="px-2 py-5 text-center t-muted">Loading current Liquid Split holders...</td></tr>';
   }
 
@@ -332,7 +581,7 @@ function capTableRowsFor(r, key, holders, canManage) {
 
 function capTableFooterFor(r, key, holders) {
   const state = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : null;
-  const loading = state && state.status === 'loading';
+  const loading = state && state.status === 'loading' && (!Array.isArray(state.holders) || !state.holders.length);
   const totalTokens = holders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
   const liquidSplitLink = r.liquidSplitAddress
     ? `<a class="linkbtn" href="${splitsExplorerAccount(r.liquidSplitAddress)}" target="_blank" rel="noreferrer">${shortAddr(r.liquidSplitAddress)}</a>`
@@ -344,7 +593,7 @@ function capTableFooterFor(r, key, holders) {
       <td class="num">${loading ? '...' : fmtPct(totalTokens / r.totalTokens * 100)}</td>
     </tr>
     <tr class="footnote">
-      <td colspan="3">Verify this cap table by viewing the Liquid Split at ${liquidSplitLink}.</td>
+      <td colspan="3">Verify this cap table by viewing the split at ${liquidSplitLink}.</td>
     </tr>
   </tfoot>`;
 }
@@ -361,22 +610,38 @@ function render() {
   const canManage = canManageRaise(r);
   const max = r.raise.max, min = r.raise.min;
   const offerTokens = r.maxDilutionPct / 100 * r.totalTokens;
-  const onchainOffering = offeringSnapshot(r);
+  const onchainOffering = debugOfferingSnapshot(r, offeringSnapshot(r));
+  const offeringReadFailed = r.offeringAddress && !debugActive() && onchainOfferingState && onchainOfferingState.status === 'error';
+  const debugReadFailed = debugOfferingState === 'error';
+  const offeringLoading = r.offeringAddress && (
+    debugOfferingState === 'loading' ||
+    !onchainOfferingState ||
+    onchainOfferingState.status === 'loading'
+  );
   const raisedTotal = onchainOffering ? usdcBaseUnitsToDollars(onchainOffering.raisedUsdcBaseUnits) : m.fundedTotal;
   const purchased = onchainOffering ? onchainOffering.unitsSold : tokensBetween(r, 0, m.fundedTotal);
-  const F = r.maxDilutionPct / 100;
-  const currentFraction = onchainOffering ? Math.min(F, purchased / r.totalTokens) : fractionAt(r, m.fundedTotal);
-  const valNow = r.valuation.floor + (r.valuation.ceiling - r.valuation.floor) * (F > 0 ? currentFraction / F : 0);
-
   const closeDate = onchainOffering && onchainOffering.closeDate ? onchainOffering.closeDate * 1000 : r.createdAt + r.minimum.deadlineDays * 86400000;
   const filled = raisedTotal >= max;
   const pastClose = Date.now() > closeDate;
   const open = onchainOffering ? onchainOffering.state === 0 && (!pastClose || onchainOffering.minMet) : !filled && !pastClose;
   const gap = min - raisedTotal;
   const secured = onchainOffering ? onchainOffering.minMet : gap <= 0;
-  const status = offeringStatus(onchainOffering, open, secured);
+  const status = onchainStatusFallback(r, onchainOffering, offeringStatus(onchainOffering, open, secured));
   const claimable = onchainOffering ? Math.max(0, raisedTotal - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits)) : 0;
-  const actionItems = offeringActionsFor(r, onchainOffering, connectedWallet, closeDate);
+  const curve = offeringCurveParams(r);
+  const remainingUnits = onchainOffering ? Number(onchainOffering.remainingUnits || 0) : Math.max(0, offerTokens - purchased);
+  const remainingCapacity = onchainOffering && curve ? usdcBaseUnitsToDollars(costForUnits(curve, Number(onchainOffering.unitsSold || 0), remainingUnits)) : Math.max(0, max - raisedTotal);
+  const progressMax = onchainOffering && curve
+    ? Math.max(raisedTotal + remainingCapacity, min, raisedTotal, 0.000001)
+    : Math.max(max, min, raisedTotal, 0.000001);
+  const soldUnits = onchainOffering ? Number(onchainOffering.unitsSold || 0) : purchased;
+  const valStart = curve ? valuationForUnitIndex(curve, 0, r.totalTokens) : r.valuation.floor;
+  const valNow = curve ? valuationForUnitIndex(curve, soldUnits, r.totalTokens) : r.valuation.floor;
+  const valEnd = curve ? valuationForUnitIndex(curve, soldUnits + remainingUnits, r.totalTokens) : r.valuation.ceiling;
+  const liveActionItems = onchainOffering ? offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canManage) : [];
+  const actionItems = offeringLoading
+    ? disabledContractReadActions(liveActionItems, 'Reading contract state')
+    : (offeringReadFailed || debugReadFailed ? disabledContractReadActions(liveActionItems, 'Cannot read contract state') : liveActionItems);
 
   const ordered = [
     ...r.allocations.filter(a => a.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0)),
@@ -384,56 +649,94 @@ function render() {
   ];
   let cum = 0;
   const segs = [];
-  if (onchainOffering) {
-    if (raisedTotal > 0) segs.push({ label: 'Onchain purchases', amountUsd: raisedTotal, left: 0, width: Math.min(raisedTotal / max * 100, 100), funded: true });
+  if (offeringLoading) {
+    cum = 0;
+  } else if (onchainOffering) {
+    if (raisedTotal > 0) segs.push({ label: 'Onchain purchases', amountUsd: raisedTotal, left: 0, width: Math.min(raisedTotal / progressMax * 100, 100), funded: true });
     cum = raisedTotal;
     ordered.filter(a => a.status === 'allocated').forEach(a => {
-      const left = cum / max * 100;
-      if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / max * 100, 100 - left), funded: false });
+      const left = cum / progressMax * 100;
+      if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / progressMax * 100, 100 - left), funded: false });
       cum += a.amountUsd;
     });
   } else {
     ordered.forEach(a => {
-      const left = cum / max * 100;
-      if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / max * 100, 100 - left), funded: a.status === 'funded' });
+      const left = cum / progressMax * 100;
+      if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / progressMax * 100, 100 - left), funded: a.status === 'funded' });
       cum += a.amountUsd;
     });
   }
-  const minPct = Math.min(100, min / max * 100);
-  const over = raisedTotal + m.allocatedTotal - max; // committed beyond the max
+  const minPct = Math.min(100, min / progressMax * 100);
+  const over = raisedTotal + m.allocatedTotal - progressMax; // committed beyond live capacity
+  const loadingText = '<span class="t-muted">Loading...</span>';
+  const targetRaiseHtml = offeringLoading
+    ? loadingText
+    : `<span>Up to ${fmtMoney(progressMax)}</span><span class="t-muted">${fmtDollars(min)} minimum</span>`;
+  const valuationRangeHtml = offeringLoading
+    ? loadingText
+    : `<span>${fmtMoney(valStart)}–${fmtMoney(valEnd)} post-money</span>`;
+  const valuationHtml = offeringLoading
+    ? loadingText
+    : `<span>${fmtMoney(valNow)} post-money</span><span class="t-muted">${fmtTokenPrice(valNow / r.totalTokens)} / token</span>`;
+  const availableHtml = offeringLoading
+    ? loadingText
+    : `<span>${fmtPct(remainingUnits / r.totalTokens * 100)}</span><span class="t-muted">${fmtTokens(remainingUnits)} tokens</span>`;
+  const raisedHtml = offeringLoading
+    ? `<span class="font-bold t-muted">Loading...</span>`
+    : `<span class="font-bold">${fmtMoney(raisedTotal)}</span> raised`;
+  const progressMaxHtml = offeringLoading ? '' : fmtMoney(progressMax);
+  const proceedsProgressHtml = !offeringLoading && onchainOffering
+    ? `<span class="t-muted">${fmtMoney(claimable)} claimable</span><span class="t-muted">${fmtMoney(usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits))} withdrawn</span>`
+    : '';
+  const progressSecondaryHtml = offeringLoading
+    ? ''
+    : `${proceedsProgressHtml}${m.allocatedTotal > 0 ? `<span class="t-muted">${fmtMoney(m.allocatedTotal)} allocated</span>` : ''}${over > 0 ? `<span class="text-pending">${fmtMoney(over)} oversubscribed</span>` : ''}`;
+  const minmarkTipHtml = offeringLoading
+    ? `Minimum: ${fmtDollars(min)}`
+    : `Minimum: ${fmtDollars(min)}`;
 
   const rows = r.allocations.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map(a => {
     const funded = a.status === 'funded';
     const tk = Number(a.tokensPurchased || m.tokensById[a.id] || 0);
+    const purchaseCost = Number(a.purchaseCostUsdcBaseUnits || 0) > 0 ? usdcBaseUnitsToDollars(a.purchaseCostUsdcBaseUnits) : Number(a.amountUsd || 0);
     const txLink = funded && a.txHash
-      ? ` <a class="act" href="${basescanTx(a.txHash)}" target="_blank" rel="noreferrer">View txn</a>`
+      ? `<a class="act muted" href="${basescanTx(a.txHash)}" target="_blank" rel="noreferrer">View txn</a>`
       : '';
     const status = funded
-      ? `<span class="badge funded">Purchased <span class="tokencell">${fmtTokens(tk)} tokens<span class="tip2">${tk > 0 ? fmtPrice(a.amountUsd / tk) : '—'} / token</span></span></span>${txLink}`
-      : `<span class="badge allocated">Allocated</span> <span class="t-muted">${fmtShort(a.createdAt)}</span>`;
+      ? `Purchased <span class="tokencell">${fmtTokens(tk)} tokens<span class="tip2">${tk > 0 ? fmtTokenPrice(purchaseCost / tk) : '—'} / token</span></span> on ${fmtShort(a.fundedAt || a.createdAt)}`
+      : `<span class="badge allocated">Allocated</span> <span>${fmtShort(a.createdAt)}</span>`;
     return `<tr>
       <td>${esc(a.name)}</td>
-      <td class="num">${fmtMoney(a.amountUsd)}</td>
+      <td class="num">${funded ? fmtMoney(purchaseCost) : fmtMoney(a.amountUsd)}</td>
       <td>${status}</td>
       <td class="num whitespace-nowrap">
-        ${canManage ? `<span class="alloc-actions">${funded ? '' : `<button class="act danger" data-act="del" data-id="${a.id}">Delete</button>`}<button class="act" data-act="copy" data-id="${a.id}">Copy link</button></span>` : ''}
+        ${canManage ? `<span class="alloc-actions">${funded ? txLink : `<button class="act danger" data-act="del" data-id="${a.id}">Delete</button>`}<button class="act muted" data-act="copy" data-id="${a.id}">Copy link</button></span>` : ''}
       </td>
     </tr>`;
   }).join('');
+  const allocationEntryRow = allocationEntryOpen
+    ? `<tr class="alloc-entry no-print">
+        <td><input id="allocName" class="blank" placeholder="Buyer name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></td>
+        <td class="num"><div class="flex items-center gap-1"><span class="t-muted">$</span><input id="allocAmount" class="blank text-right" inputmode="decimal" placeholder="0.00" autocomplete="off"></div></td>
+        <td><p id="allocError" class="hidden text-[12px] t-danger"></p></td>
+        <td class="num whitespace-nowrap"><span class="alloc-actions"><button class="act danger" data-act="cancel-add">Cancel</button><button class="act" data-act="add">Generate link</button></span></td>
+      </tr>`
+    : `<tr class="addrow no-print"><td colspan="4"><button data-act="open-add" type="button">+ New allocation</button></td></tr>`;
   const bondingCurveAddress = r.bondingCurveAddress || '';
   const capTableKey = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
   const capTableHolders = capTableHoldersFor(r, capTableKey);
   const capTableRows = capTableRowsFor(r, capTableKey, capTableHolders, canManage);
   const capTableFooter = capTableFooterFor(r, capTableKey, capTableHolders);
   const capTableState = onchainCapTableState && onchainCapTableState.key === capTableKey ? onchainCapTableState : null;
+  const hasCachedCapTable = capTableState && Array.isArray(capTableState.holders) && capTableState.holders.length;
   const capTableNote = !r.liquidSplitAddress
     ? 'Onchain cap table appears after Liquid Split deployment.'
     : capTableState && capTableState.status === 'loading'
-      ? 'Reading indexed holder balances from Splits Explorer.'
+      ? (hasCachedCapTable ? 'Refreshing current Liquid Split holders. Showing cached balances.' : 'Reading current Liquid Split holders.')
       : capTableState && capTableState.status === 'loaded' && capTableState.source === 'rpc'
         ? 'Splits Explorer was unavailable. Showing current balances from direct Base RPC.'
         : capTableState && capTableState.status === 'error'
-          ? 'Could not read indexed or direct onchain balances. Showing issuance targets.'
+          ? (hasCachedCapTable ? 'Could not refresh current Liquid Split holders. Showing cached balances.' : 'Could not read current Liquid Split holders. Showing issuance targets.')
         : '';
 
   app.innerHTML = `
@@ -446,50 +749,40 @@ function render() {
 
     <div class="font-bold mb-2 mt-8">Offering details</div>
     <dl class="deflist mb-7">
-      <dt>Raising</dt><dd>${min !== max ? 'Up to ' : ''}${fmtMoney(max)} on ${fmtMoney(r.valuation.effectiveCap)} post-money</dd>
-      <dt>Selling</dt><dd class="flex items-baseline space-x-2"><span>${r.maxDilutionPct}%</span><span class="t-muted">${fmtTokens(offerTokens)} tokens</span></dd>
-      <dt>Treasury</dt><dd>${r.proceedsAddress ? `<a class="linkbtn" href="${basescanAddress(r.proceedsAddress)}" target="_blank" rel="noreferrer">${shortAddr(r.proceedsAddress)}</a>` : '<span class="t-muted">Not set</span>'}</dd>
-      <dt>Close date</dt><dd class="flex items-baseline space-x-2"><span>${fmtDate(closeDate)}</span><span class="t-muted">${relDays(closeDate)}</span></dd>
+      <dt>Target raise</dt><dd class="flex items-baseline space-x-2">${targetRaiseHtml}</dd>
+      <dt>Valuation range</dt><dd class="flex items-baseline space-x-2">${valuationRangeHtml}</dd>
+      <dt>Close date</dt><dd class="flex items-baseline space-x-2"><span>${fmtDate(closeDate)}</span>${relDays(closeDate) ? `<span class="t-muted">${relDays(closeDate)}</span>` : ''}</dd>
+      <dt>Treasury</dt><dd>${r.proceedsAddress ? `<a class="value-link" href="${basescanAddress(r.proceedsAddress)}" target="_blank" rel="noreferrer">${shortAddr(r.proceedsAddress)}</a>` : '<span class="t-muted">Not set</span>'}</dd>
     </dl>
 
-    <div class="font-bold mb-2">Offering status</div>
+    <div class="font-bold mb-2">Offering state</div>
     <dl class="deflist">
-      <dt>Status</dt><dd class="flex items-center gap-2"><span class="status-chip ${status.tone}">${status.label}</span><span class="t-muted">${status.note}</span></dd>
-      <dt>Tokens sold</dt><dd>${fmtTokens(purchased)} of ${fmtTokens(offerTokens)}</dd>
-      <dt>Current valuation</dt><dd class="flex items-baseline space-x-2"><span>${fmtMoney(valNow)} post-money</span><span class="t-muted">${fmtPrice(valNow / r.totalTokens)} / share</span></dd>
-      ${onchainOffering ? `<dt>Proceeds</dt><dd class="flex items-baseline space-x-2"><span>${fmtMoney(claimable)} claimable</span><span class="t-muted">${fmtMoney(usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits))} withdrawn</span></dd>` : ''}
+      <dt>Status</dt><dd class="flex items-center gap-2">${statusHtml(status)}</dd>
+      <dt>Available</dt><dd class="flex items-baseline space-x-2">${availableHtml}</dd>
+      <dt>Valuation</dt><dd class="flex items-baseline space-x-2">${valuationHtml}</dd>
     </dl>
-    ${offeringActionsHtml(actionItems)}
 
-    <div class="mt-8">
+    ${canManage ? `<div class="mt-4">
       <div class="track-wrap">
         ${segs.map(s => `<div class="seg ${s.funded ? 'funded' : 'allocated'}" style="left:${s.left}%;width:${s.width}%"><span class="tip">${esc(s.label)}: ${fmtMoney(s.amountUsd)}</span></div>`).join('')}
-        <div class="minmark" style="left:${minPct}%"><div class="tip">Threshold: ${fmtMoney(min)}${secured ? '' : ` <span class="ml-2">${fmtMoney(gap)} below</span>`}</div></div>
+        <div class="minmark" style="left:${minPct}%"><div class="tip">${minmarkTipHtml}</div></div>
       </div>
       <div class="flex justify-between items-baseline mt-2 text-[12px]">
         <div class="flex items-baseline gap-3">
-          <span><span class="font-bold">${fmtMoney(raisedTotal)}</span> raised</span>
-          ${m.allocatedTotal > 0 ? `<span class="t-muted">${fmtMoney(m.allocatedTotal)} allocated</span>` : ''}
-          ${over > 0 ? `<span class="text-pending">${fmtMoney(over)} oversubscribed</span>` : ''}
+          <span>${raisedHtml}</span>
+          ${progressSecondaryHtml}
         </div>
-        <span class="t-muted">${fmtMoney(max)}</span>
+        <span class="t-muted">${progressMaxHtml}</span>
       </div>
     </div>
-
-    ${canManage ? `<div class="alloc-form no-print">
-      <div class="font-bold mb-3">New allocation</div>
-      <div class="flex items-center gap-3">
-        <input id="allocName" class="blank flex-1" placeholder="Buyer name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <div class="flex items-center gap-1"><span class="t-muted">$</span><input id="allocAmount" class="blank w-28 text-left" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
-        <button class="cta px-5 text-[13px] font-semibold" data-act="add">Generate link</button>
-      </div>
-      <p id="allocError" class="hidden text-[13px] t-danger mt-2"></p>
-    </div>` : `<div class="notice no-print mt-10 mb-4">Connect with the issuer or treasury wallet to manage allocations.</div>`}
+    ${offeringActionsHtml(actionItems)}` : ''}
 
     ${canManage ? `<table class="exhibit alloc-table mt-10">
       <thead><tr><th>Buyer</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="4" class="px-2 py-5 text-center t-muted">No allocations yet. Create a private allocation using the above form.</td></tr>`}</tbody>
+      <tbody>${rows || `<tr><td colspan="4" class="px-2 py-5 text-center t-muted">No allocations yet. Create a private allocation using the row below.</td></tr>`}${allocationEntryRow}</tbody>
     </table>` : ''}
+
+    ${canManage ? '' : `<div class="notice no-print mt-10 mb-4">Connect with the issuer's treasury wallet to manage the offering.</div>`}
 
     <div class="font-bold mb-2 mt-10">Cap table</div>
     ${capTableNote ? `<p class="text-[12px] t-muted mb-2">${capTableNote}</p>` : ''}
@@ -520,13 +813,23 @@ app.addEventListener('input', e => {
 app.addEventListener('click', async e => {
   const offeringBtn = e.target.closest('[data-offering-action]');
   if (offeringBtn) {
+    if (offeringBtn.disabled) return;
+    if (debugActive()) {
+      toast('Debug preview only');
+      return;
+    }
     const r = getRaise();
     if (!r || !r.offeringAddress || !connectedWallet) return;
+    const action = offeringBtn.dataset.offeringAction;
+    if (action === 'top-up') {
+      copy(r.offeringAddress, 'Offering address copied');
+      return;
+    }
+    if (action === 'close' && !confirm('Close this round? This withdraws funds, returns unsold tokens to treasury, and cannot be undone.')) return;
     if (!window.PactLiquidSplit) {
       toast('Onchain module is unavailable');
       return;
     }
-    const action = offeringBtn.dataset.offeringAction;
     const original = offeringBtn.textContent;
     offeringBtn.disabled = true;
     offeringBtn.textContent = 'Confirming...';
@@ -540,6 +843,10 @@ app.addEventListener('click', async e => {
       } else if (action === 'mark-failed') {
         await PactLiquidSplit.markOfferingFailed({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: connectedWallet });
         toast('Offering marked failed');
+      } else if (action === 'refund-all') {
+        const buyers = Array.from(new Set((r.allocations || []).filter(a => a.status === 'funded' && a.buyerWallet).map(a => a.buyerWallet)));
+        await PactLiquidSplit.refundAllOffering({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: connectedWallet, buyers });
+        toast('Refunds sent');
       }
       await refreshOnchainOffering();
       refreshOnchainCapTable();
@@ -561,6 +868,20 @@ app.addEventListener('click', async e => {
     return;
   }
 
+  if (act === 'open-add') {
+    allocationEntryOpen = true;
+    render();
+    const nameInput = $('allocName');
+    if (nameInput) nameInput.focus();
+    return;
+  }
+
+  if (act === 'cancel-add') {
+    allocationEntryOpen = false;
+    render();
+    return;
+  }
+
   if (act === 'add') {
     const name = $('allocName').value.trim();
     const amount = +$('allocAmount').value.replace(/[^0-9.]/g, '') || 0;
@@ -574,6 +895,7 @@ app.addEventListener('click', async e => {
     try {
       const result = await PactAPI.addAllocation(r.id, { name, amountUsd: amount });
       currentRaise = result.raise;
+      allocationEntryOpen = false;
       render();
       copy(buyLink(result.allocation.id), 'Link copied — send it to ' + name);
     } catch (err2) {
@@ -605,11 +927,44 @@ PactWallet.init({
   buttonId: 'walletToggle',
   onChange: account => {
     connectedWallet = account;
+    onchainOfferingState = null;
     render();
     refreshOnchainOffering();
   },
 });
 loadRaise();
+
+function initDebugMenu() {
+  if (!['localhost', '127.0.0.1'].includes(location.hostname)) return;
+  const menu = $('debugMenu');
+  const toggle = $('debugToggle');
+  const panel = $('debugPanel');
+  if (!menu || !toggle || !panel) return;
+  menu.classList.add('show');
+  function syncDebugMenu() {
+    panel.querySelectorAll('[data-debug-state]').forEach(button => {
+      button.classList.toggle('active', button.dataset.debugState === debugOfferingState);
+    });
+  }
+  toggle.addEventListener('click', () => {
+    syncDebugMenu();
+    panel.classList.toggle('show');
+  });
+  panel.addEventListener('click', e => {
+    const button = e.target.closest('[data-debug-state]');
+    if (!button) return;
+    debugOfferingState = button.dataset.debugState;
+    syncDebugMenu();
+    panel.classList.remove('show');
+    render();
+  });
+  document.addEventListener('click', e => {
+    if (menu.contains(e.target)) return;
+    panel.classList.remove('show');
+  });
+  syncDebugMenu();
+}
+initDebugMenu();
 </script>
 <script>
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {

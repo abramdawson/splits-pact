@@ -22,6 +22,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
+<style>
+  .disabled-tip-wrap { position: relative; display: inline-flex; }
+  .disabled-tip { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: 11px; line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; }
+  .disabled-tip-wrap:hover .disabled-tip { opacity: 1; }
+  .disabled-tip:empty { display: none; }
+</style>
 </head>
 <body>
   <div class="top-controls">
@@ -125,8 +131,10 @@
       <div class="mt-10" id="ctaRow">
         <p id="formError" class="hidden text-[13px] t-danger mb-3"></p>
         <div class="flex items-center justify-end space-x-4">
-          <p id="ctaHint" class="hidden text-[13px] t-muted"></p>
-          <button id="createBtn" class="cta py-3 px-8 text-[14px] font-semibold tracking-wide">Create issuance</button>
+          <span class="disabled-tip-wrap">
+            <button id="createBtn" class="cta py-3 px-8 text-[14px] font-semibold tracking-wide">Create issuance</button>
+            <span id="createTip" class="disabled-tip"></span>
+          </span>
         </div>
       </div>
 
@@ -171,15 +179,12 @@ function formIsValid() {
 function updateCreateState() {
   const valid = formIsValid();
   const btn = $('createBtn');
-  const hint = $('ctaHint');
+  const tip = $('createTip');
   btn.textContent = 'Create issuance';
   btn.disabled = !valid || !connectedWallet;
-  if (valid && !connectedWallet) {
-    hint.textContent = 'Connect wallet to create issuance';
-    hint.classList.remove('hidden');
-  } else {
-    hint.classList.add('hidden');
-  }
+  tip.textContent = btn.disabled
+    ? (valid ? 'Connect wallet to create issuance' : 'Complete required fields to create issuance')
+    : '';
 }
 
 // floating error tooltip — shows a field's message on hover while it's in an error state

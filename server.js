@@ -376,6 +376,29 @@ function syncOfferingState(db, raiseId, input = {}) {
   return { status: 200, body: { raise, onchainOffering: raise.onchainOffering } };
 }
 
+function syncCapTableState(db, raiseId, input = {}) {
+  const raise = readRaise(db, raiseId);
+  if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
+  if (!isAddress(raise.liquidSplitAddress)) return { status: 409, body: { error: 'Raise has no Liquid Split.' } };
+
+  const holders = Array.isArray(input.holders) ? input.holders.map(holder => ({
+    address: isAddress(holder && holder.address) ? holder.address : '',
+    balance: parseAmount(holder && holder.balance),
+  })).filter(holder => holder.address && holder.balance > 0) : [];
+  if (!holders.length) return { status: 400, body: { error: 'Valid cap table holders are required.' } };
+
+  raise.onchainCapTable = {
+    syncedAt: Date.now(),
+    liquidSplitAddress: raise.liquidSplitAddress,
+    bondingCurveAddress: isAddress(raise.bondingCurveAddress) ? raise.bondingCurveAddress : undefined,
+    chainId: parseNonnegativeInteger(input.chainId) || raise.chainId || DEFAULT_CHAIN_ID,
+    source: String(input.source || 'onchain'),
+    holders: holders.sort((a, b) => a.address.toLowerCase() > b.address.toLowerCase() ? 1 : -1),
+  };
+  writeRaise(db, raise);
+  return { status: 200, body: { raise, onchainCapTable: raise.onchainCapTable } };
+}
+
 function sendResult(res, result) {
   res.status(result.status).json(result.body);
 }
@@ -411,6 +434,10 @@ function createApp(options = {}) {
 
   app.post('/api/raises/:id/offering-state', (req, res) => {
     sendResult(res, syncOfferingState(db, req.params.id, req.body));
+  });
+
+  app.post('/api/raises/:id/cap-table-state', (req, res) => {
+    sendResult(res, syncCapTableState(db, req.params.id, req.body));
   });
 
   app.get('/api/liquid-splits/:address/holders', async (req, res) => {
@@ -468,5 +495,6 @@ module.exports = {
   deleteAllocation,
   setAllocationFunded,
   syncOfferingState,
+  syncCapTableState,
   fetchLiquidSplitHoldersFromExplorer,
 };
