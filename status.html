@@ -19,14 +19,15 @@
 <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <style>
   .act { background: none; border: 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--marker); padding: 0; }
   .act:hover { text-decoration: underline; }
   .act.danger { color: var(--del); }
   .act.danger:hover { color: var(--danger); }
-  .alloc-form { border: 1px dotted var(--line-dotted); padding: 16px; margin: 48px 0 18px; }
+  .alloc-actions { display: inline-flex; align-items: baseline; gap: 12px; }
+  .alloc-form { border: 1px dotted var(--line-dotted); border-radius: var(--radius-default); padding: 16px; margin: 48px 0 18px; }
   .alloc-form .blank { height: 34px; }
   .alloc-form .cta { height: 34px; display: inline-flex; align-items: center; }
   .alloc-table { table-layout: fixed; }
@@ -49,7 +50,7 @@
     </button>
   </div>
 
-  <div class="min-h-screen flex justify-center items-start py-12 px-4">
+  <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
     <div class="paper w-full max-w-[820px] px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.5]">
       <div id="app"></div>
     </div>
@@ -82,6 +83,7 @@ const shortAddr = a => a && a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) 
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
 const basescanAddress = address => 'https://basescan.org/address/' + encodeURIComponent(address);
+const basescanTx = tx => 'https://basescan.org/tx/' + encodeURIComponent(tx);
 const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/' + encodeURIComponent(address) + '/?chainId=8453';
 
 const raiseId = new URLSearchParams(location.search).get('id');
@@ -113,6 +115,7 @@ async function loadRaise() {
   }
   onchainCapTableState = null;
   render();
+  refreshOnchainOffering();
   refreshOnchainCapTable();
 }
 
@@ -165,6 +168,33 @@ async function refreshOnchainCapTable() {
     }
   }
   render();
+}
+
+async function refreshOnchainOffering() {
+  const r = getRaise();
+  if (!r || !r.offeringAddress || !window.PactLiquidSplit || !window.PactAPI) return;
+  const provider = window.PactWallet && PactWallet.provider;
+  if (!provider) return;
+  try {
+    const state = await PactLiquidSplit.getOfferingState({
+      offeringAddress: r.offeringAddress,
+      provider,
+    });
+    const result = await PactAPI.syncOfferingState(r.id, state);
+    currentRaise = result.raise;
+    render();
+  } catch (err) {}
+}
+
+function offeringSnapshot(r) {
+  const s = r && r.onchainOffering;
+  return s && s.offeringAddress && String(s.offeringAddress).toLowerCase() === String(r.offeringAddress || '').toLowerCase()
+    ? s
+    : null;
+}
+
+function usdcBaseUnitsToDollars(value) {
+  return Number(value || 0) / 1000000;
 }
 
 async function readOnchainCapTableFromRpc(r, key) {
@@ -220,9 +250,12 @@ function capTableHoldersFor(r, key) {
   });
 }
 
-function capTableRowsFor(r, key, holders) {
+function capTableRowsFor(r, key, holders, canManage) {
   const bondingCurveAddress = String(r.bondingCurveAddress || '').toLowerCase();
   const state = onchainCapTableState && onchainCapTableState.key === key ? onchainCapTableState : null;
+  const buyerNamesByWallet = new Map((r.allocations || [])
+    .filter(a => a.status === 'funded' && a.buyerWallet && a.name)
+    .map(a => [String(a.buyerWallet).toLowerCase(), a.name]));
   if (state && state.status === 'loading') {
     return '<tr><td colspan="3" class="px-2 py-5 text-center t-muted">Loading current Liquid Split holders...</td></tr>';
   }
@@ -236,9 +269,10 @@ function capTableRowsFor(r, key, holders) {
       const address = holder.address;
       const lower = String(address || '').toLowerCase();
       const isCurve = lower === bondingCurveAddress;
+      const buyerName = canManage ? buyerNamesByWallet.get(lower) : null;
       const label = isCurve
-        ? `Bonding curve: <a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`
-        : `<a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`;
+        ? `PACT offering: <a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`
+        : `${buyerName ? esc(buyerName) + ': ' : ''}<a class="linkbtn" href="${basescanAddress(address)}" target="_blank" rel="noreferrer">${shortAddr(address)}</a>`;
       return `<tr${isCurve ? ' class="highlight"' : ''}>
         <td>${label}</td>
         <td class="num">${fmtTokens(holder.balance)}</td>
@@ -279,18 +313,22 @@ function render() {
   const canManage = canManageRaise(r);
   const max = r.raise.max, min = r.raise.min;
   const offerTokens = r.maxDilutionPct / 100 * r.totalTokens;
-  const purchased = tokensBetween(r, 0, m.fundedTotal);
+  const onchainOffering = offeringSnapshot(r);
+  const raisedTotal = onchainOffering ? usdcBaseUnitsToDollars(onchainOffering.raisedUsdcBaseUnits) : m.fundedTotal;
+  const purchased = onchainOffering ? onchainOffering.unitsSold : tokensBetween(r, 0, m.fundedTotal);
   const F = r.maxDilutionPct / 100;
-  const currentFraction = fractionAt(r, m.fundedTotal);
+  const currentFraction = onchainOffering ? Math.min(F, purchased / r.totalTokens) : fractionAt(r, m.fundedTotal);
   const valNow = r.valuation.floor + (r.valuation.ceiling - r.valuation.floor) * (F > 0 ? currentFraction / F : 0);
 
   const closeDate = r.createdAt + r.minimum.deadlineDays * 86400000;
-  const filled = m.fundedTotal >= max;
+  const filled = raisedTotal >= max;
   const pastClose = Date.now() > closeDate;
-  const open = !filled && !pastClose;
-  const gap = min - m.fundedTotal;
-  const secured = gap <= 0;
-  const statusWord = open ? 'Open' : 'Closed';
+  const open = onchainOffering ? onchainOffering.state === 0 && (!pastClose || onchainOffering.minMet) : !filled && !pastClose;
+  const gap = min - raisedTotal;
+  const secured = onchainOffering ? onchainOffering.minMet : gap <= 0;
+  const statusWord = onchainOffering
+    ? (onchainOffering.state === 1 ? 'Failed' : onchainOffering.state === 2 ? 'Closed' : open ? 'Open' : 'Expired')
+    : (open ? 'Open' : 'Closed');
   const noteText = secured ? 'secured' : (open ? fmtMoney(gap) + ' below threshold' : 'below threshold — refund');
 
   const ordered = [
@@ -299,33 +337,46 @@ function render() {
   ];
   let cum = 0;
   const segs = [];
-  ordered.forEach(a => {
-    const left = cum / max * 100;
-    if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / max * 100, 100 - left), funded: a.status === 'funded' });
-    cum += a.amountUsd;
-  });
+  if (onchainOffering) {
+    if (raisedTotal > 0) segs.push({ label: 'Onchain purchases', amountUsd: raisedTotal, left: 0, width: Math.min(raisedTotal / max * 100, 100), funded: true });
+    cum = raisedTotal;
+    ordered.filter(a => a.status === 'allocated').forEach(a => {
+      const left = cum / max * 100;
+      if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / max * 100, 100 - left), funded: false });
+      cum += a.amountUsd;
+    });
+  } else {
+    ordered.forEach(a => {
+      const left = cum / max * 100;
+      if (left < 100) segs.push({ label: a.name, amountUsd: a.amountUsd, left, width: Math.min(a.amountUsd / max * 100, 100 - left), funded: a.status === 'funded' });
+      cum += a.amountUsd;
+    });
+  }
   const minPct = Math.min(100, min / max * 100);
-  const over = m.fundedTotal + m.allocatedTotal - max; // committed beyond the max
+  const over = raisedTotal + m.allocatedTotal - max; // committed beyond the max
 
   const rows = r.allocations.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map(a => {
     const funded = a.status === 'funded';
-    const tk = m.tokensById[a.id] || 0;
+    const tk = Number(a.tokensPurchased || m.tokensById[a.id] || 0);
+    const txLink = funded && a.txHash
+      ? ` <a class="act" href="${basescanTx(a.txHash)}" target="_blank" rel="noreferrer">View txn</a>`
+      : '';
     const status = funded
-      ? `<span class="badge funded"><span class="tokencell">${fmtTokens(tk)} tokens<span class="tip2">${tk > 0 ? fmtPrice(a.amountUsd / tk) : '—'} / token</span></span> purchased for ${fmtMoney(a.amountUsd)}</span>`
+      ? `<span class="badge funded">Purchased <span class="tokencell">${fmtTokens(tk)} tokens<span class="tip2">${tk > 0 ? fmtPrice(a.amountUsd / tk) : '—'} / token</span></span></span>${txLink}`
       : `<span class="badge allocated">Allocated</span> <span class="t-muted">${fmtShort(a.createdAt)}</span>`;
     return `<tr>
       <td>${esc(a.name)}</td>
       <td class="num">${fmtMoney(a.amountUsd)}</td>
       <td>${status}</td>
       <td class="num whitespace-nowrap">
-        ${canManage ? `<button class="act" data-act="copy" data-id="${a.id}">Copy link</button> ${funded ? '' : `<button class="act danger" data-act="del" data-id="${a.id}">Delete</button>`}` : ''}
+        ${canManage ? `<span class="alloc-actions">${funded ? '' : `<button class="act danger" data-act="del" data-id="${a.id}">Delete</button>`}<button class="act" data-act="copy" data-id="${a.id}">Copy link</button></span>` : ''}
       </td>
     </tr>`;
   }).join('');
   const bondingCurveAddress = r.bondingCurveAddress || '';
   const capTableKey = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
   const capTableHolders = capTableHoldersFor(r, capTableKey);
-  const capTableRows = capTableRowsFor(r, capTableKey, capTableHolders);
+  const capTableRows = capTableRowsFor(r, capTableKey, capTableHolders, canManage);
   const capTableFooter = capTableFooterFor(r, capTableKey, capTableHolders);
   const capTableState = onchainCapTableState && onchainCapTableState.key === capTableKey ? onchainCapTableState : null;
   const capTableNote = !r.liquidSplitAddress
@@ -350,6 +401,7 @@ function render() {
     <dl class="deflist mb-7">
       <dt>Raising</dt><dd>${min !== max ? 'Up to ' : ''}${fmtMoney(max)} on ${fmtMoney(r.valuation.effectiveCap)} post-money</dd>
       <dt>Selling</dt><dd class="flex items-baseline space-x-2"><span>${r.maxDilutionPct}%</span><span class="t-muted">${fmtTokens(offerTokens)} tokens</span></dd>
+      <dt>Treasury</dt><dd>${r.proceedsAddress ? `<a class="linkbtn" href="${basescanAddress(r.proceedsAddress)}" target="_blank" rel="noreferrer">${shortAddr(r.proceedsAddress)}</a>` : '<span class="t-muted">Not set</span>'}</dd>
       <dt>Close date</dt><dd class="flex items-baseline space-x-2"><span>${fmtDate(closeDate)}</span><span class="t-muted">${relDays(closeDate)}</span></dd>
     </dl>
 
@@ -367,7 +419,7 @@ function render() {
       </div>
       <div class="flex justify-between items-baseline mt-2 text-[12px]">
         <div class="flex items-baseline gap-3">
-          <span><span class="font-bold">${fmtMoney(m.fundedTotal)}</span> raised</span>
+          <span><span class="font-bold">${fmtMoney(raisedTotal)}</span> raised</span>
           ${m.allocatedTotal > 0 ? `<span class="t-muted">${fmtMoney(m.allocatedTotal)} allocated</span>` : ''}
           ${over > 0 ? `<span class="text-pending">${fmtMoney(over)} oversubscribed</span>` : ''}
         </div>
@@ -383,7 +435,7 @@ function render() {
         <button class="cta px-5 text-[13px] font-semibold" data-act="add">Generate link</button>
       </div>
       <p id="allocError" class="hidden text-[13px] t-danger mt-2"></p>
-    </div>` : `<div class="notice no-print mt-10 mb-4">Connect with the issuer, treasury, or a collaborator wallet to manage allocations.</div>`}
+    </div>` : `<div class="notice no-print mt-10 mb-4">Connect with the issuer or treasury wallet to manage allocations.</div>`}
 
     ${canManage ? `<table class="exhibit alloc-table mt-10">
       <thead><tr><th>Buyer</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
@@ -472,6 +524,7 @@ PactWallet.init({
   onChange: account => {
     connectedWallet = account;
     render();
+    refreshOnchainOffering();
   },
 });
 loadRaise();

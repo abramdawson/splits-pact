@@ -19,12 +19,16 @@
 <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <style>
   .notice { border: 1px dotted var(--line-dotted); padding: 16px; text-align: center; }
-  .debug-toggle { position: fixed; right: 16px; bottom: 16px; z-index: 10; height: 36px; display: flex; align-items: center; font-family: inherit; font-size: 11px; color: var(--muted); background: var(--paper); border: 1px dashed var(--line-dotted); padding: 0 10px; cursor: pointer; }
+  .debug-toggle { position: fixed; right: 16px; bottom: 16px; z-index: 10; height: 36px; display: flex; align-items: center; font-family: inherit; font-size: 11px; color: var(--muted); background: var(--paper); border: 1px dashed var(--line-dotted); border-radius: var(--radius-default); padding: 0 10px; cursor: pointer; }
   .debug-toggle:hover { color: var(--ink); }
+  .status-value { display: flex; align-items: center; gap: 0.5rem; }
+  .status-state { display: inline-flex; align-items: center; gap: 6px; }
+  .status-dot { width: 14px; height: 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--ok); color: #fff; flex: 0 0 auto; }
+  .status-dot svg { width: 10px; height: 10px; }
 </style>
 </head>
 <body>
@@ -36,8 +40,8 @@
   </div>
   <button id="debugToggle" class="debug-toggle">debug</button>
 
-  <div class="min-h-screen flex justify-center items-start py-12 px-4">
-    <div class="paper w-full max-w-[820px] px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]">
+  <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
+    <div class="paper w-full max-w-xl px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]">
       <div id="app"></div>
     </div>
   </div>
@@ -54,6 +58,7 @@ const raiseId = params.get('r'), allocId = params.get('a');
 const TOTAL_SHARES = 1000;
 let currentRaise = null;
 let connectedWallet = null;
+let onchainReceiptState = null;
 
 function fmtMoney(n) {
   const value = Number(n) || 0;
@@ -66,6 +71,7 @@ function fmtMoney(n) {
 const fmtTokens = n => Math.round(n).toLocaleString('en-US');
 const fmtPct = v => (Math.round(v * 10) / 10).toString().replace(/\.0$/, '') + '%';
 const fmtPrice = p => '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usdcBaseUnitsToDollars = n => Number(n || 0) / 1_000_000;
 const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
@@ -83,7 +89,9 @@ async function loadRaise() {
   } catch (err) {
     currentRaise = null;
   }
+  onchainReceiptState = null;
   render();
+  refreshOnchainReceipt();
 }
 
 function fractionAt(r, R) {
@@ -108,6 +116,36 @@ function tokensForFunded(r, alloc) {
   return 0;
 }
 
+function receiptKey(r, allocation) {
+  return [
+    r && r.id,
+    allocation && allocation.id,
+    r && r.liquidSplitAddress,
+    allocation && allocation.buyerWallet,
+  ].join(':');
+}
+
+async function refreshOnchainReceipt() {
+  const r = currentRaise;
+  const a = r && (r.allocations || []).find(x => x.id === allocId);
+  if (!r || !a || a.status !== 'funded' || !r.offeringAddress || !a.buyerWallet || !a.txHash || !window.PactLiquidSplit) return;
+  const key = receiptKey(r, a);
+  onchainReceiptState = { key, status: 'loading' };
+  render();
+  try {
+    const purchase = await PactLiquidSplit.getOfferingPurchaseFromTx({
+      offeringAddress: r.offeringAddress,
+      txHash: a.txHash,
+      buyer: a.buyerWallet,
+      provider: PactWallet.provider,
+    });
+    onchainReceiptState = { key, status: 'loaded', tokens: Number(purchase.units), cost: Number(purchase.cost) };
+  } catch (err) {
+    onchainReceiptState = { key, status: 'error', error: err.message || 'Could not read onchain ownership.' };
+  }
+  render();
+}
+
 function notice(title, body) {
   app.innerHTML = `<div class="notice"><div class="font-bold mb-1">${esc(title)}</div><div class="t-muted text-[13px]">${body}</div></div>`;
 }
@@ -122,8 +160,16 @@ function render() {
   const closeDate = r.createdAt + r.minimum.deadlineDays * 86400000;
   const raiseClosed = funded >= r.raise.max || Date.now() > closeDate;
   const isPaid = a.status === 'funded';
-  const tokens = isPaid ? tokensForFunded(r, a) : tokensBetween(r, funded, funded + a.amountUsd);
-  const pricePer = tokens > 0 ? a.amountUsd / tokens : 0;
+  const localTokens = isPaid ? tokensForFunded(r, a) : tokensBetween(r, funded, funded + a.amountUsd);
+  const receiptState = onchainReceiptState && onchainReceiptState.key === receiptKey(r, a) ? onchainReceiptState : null;
+  const dbTokens = Number(a.tokensPurchased || 0);
+  const dbCostBaseUnits = Number(a.purchaseCostUsdcBaseUnits || 0);
+  const hasPurchaseData = isPaid && dbTokens > 0 && dbCostBaseUnits > 0;
+  const hasOnchainReceipt = isPaid && receiptState && receiptState.status === 'loaded';
+  const purchasedTokens = hasPurchaseData ? dbTokens : (hasOnchainReceipt ? receiptState.tokens : localTokens);
+  const purchaseCost = hasPurchaseData ? usdcBaseUnitsToDollars(dbCostBaseUnits) : (hasOnchainReceipt ? usdcBaseUnitsToDollars(receiptState.cost) : a.amountUsd);
+  const allocationTokens = isPaid ? (localTokens || purchasedTokens) : tokensBetween(r, funded, funded + a.amountUsd);
+  const pricePer = purchasedTokens > 0 ? purchaseCost / purchasedTokens : 0;
   const gap = r.raise.min - funded;
   const secured = gap <= 0;
   const statusWord = raiseClosed ? 'Closed' : 'Open';
@@ -137,19 +183,28 @@ function render() {
     </div>`;
 
   const txHash = isTxHash(a.txHash) ? a.txHash : '';
-  const txShort = txHash ? txHash.slice(0, 10) + '…' + txHash.slice(-8) : '';
   const txLabel = txHash
-    ? `<a class="linkbtn" href="${basescanTx(txHash)}" target="_blank" rel="noreferrer">${txShort}</a>`
+    ? `<a class="linkbtn" href="${basescanTx(txHash)}" target="_blank" rel="noreferrer">View transaction</a>`
     : '<span class="t-muted">Recorded locally</span>';
 
-  const purchaseDetails = `
-    <div class="font-bold mb-2">${isPaid ? 'Purchase details' : 'Allocation details'}</div>
+  const allocationDetails = `
+    <div class="font-bold mb-2">Allocation details</div>
     <dl class="deflist mb-5">
       <dt>Buyer</dt><dd>${esc(a.name)}</dd>
-      <dt>Amount</dt><dd>${fmtMoney(a.amountUsd)}</dd>
-      <dt>Status</dt><dd class="flex items-baseline space-x-2"><span class="${isPaid ? 'text-ok' : 'text-pending'}">${isPaid ? 'Purchased' : 'Not yet purchased'}</span>${isPaid ? `<span class="t-muted">Transaction: ${txLabel}</span>` : ''}</dd>
-      <dt>Ownership</dt><dd class="flex items-baseline space-x-2"><span>${isPaid ? '' : '~'}${fmtPct(tokens / r.totalTokens * 100)}</span><span class="t-muted">${fmtTokens(tokens)} tokens</span></dd>
+      <dt>Amount</dt><dd class="flex items-baseline space-x-2"><span>${fmtMoney(a.amountUsd)}</span><span class="t-muted">~${fmtPct(allocationTokens / r.totalTokens * 100)} ownership</span></dd>
     </dl>`;
+
+  const purchaseDetails = isPaid ? `
+    <div class="font-bold mb-2">Purchase details</div>
+    <dl class="deflist mb-5">
+      <dt>Status</dt><dd class="status-value"><span class="status-state"><span class="status-dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span><span>Purchased</span></span>${txLabel}</dd>
+      <dt>Ownership</dt><dd>${
+        isPaid && receiptState && receiptState.status === 'loading'
+          ? '<span class="t-muted">Loading onchain ownership...</span>'
+          : `<span>${hasPurchaseData || hasOnchainReceipt ? '' : '~'}${fmtPct(purchasedTokens / r.totalTokens * 100)}</span>${hasPurchaseData || hasOnchainReceipt ? '' : ' <span class="t-muted">estimated</span>'}`
+      }</dd>
+      <dt>Tokens purchased</dt><dd class="flex items-baseline space-x-2"><span>${fmtTokens(purchasedTokens)}</span><span class="t-muted">${fmtPrice(pricePer)} / token</span></dd>
+    </dl>` : '';
 
   const roundDetails = `
     <div class="font-bold mb-2">Offering details</div>
@@ -169,7 +224,7 @@ function render() {
     action = `<div class="flex justify-end mb-8"><button class="cta px-6 py-3 text-[14px] font-semibold" data-act="pay">${r.offeringAddress ? 'Purchase' : 'Mark purchased'} ${esc(r.projectName)}</button></div>`;
   }
 
-  app.innerHTML = head + roundDetails + purchaseDetails + action;
+  app.innerHTML = head + roundDetails + allocationDetails + purchaseDetails + action;
 
   const dbgBtn = $('debugToggle');
   if (dbgBtn) dbgBtn.textContent = isPaid ? 'debug · mark unpaid' : 'debug · mark paid';
@@ -189,6 +244,7 @@ app.addEventListener('click', async e => {
   btn.textContent = r.offeringAddress ? 'Purchasing...' : 'Marking purchased...';
   try {
     let txHash = null;
+    let purchaseRecord = null;
     if (r.offeringAddress) {
       if (!window.PactLiquidSplit) throw new Error('Onchain module is unavailable.');
       const purchase = await PactLiquidSplit.buyOffering({
@@ -198,10 +254,17 @@ app.addEventListener('click', async e => {
         amountUsd: a.amountUsd,
       });
       txHash = purchase.buyTxHash;
+      purchaseRecord = {
+        txHash,
+        tokensPurchased: purchase.units,
+        purchaseCostUsdcBaseUnits: purchase.cost,
+      };
     }
-    const result = await PactAPI.fundAllocation(r.id, a.id, connectedWallet, txHash);
+    const result = await PactAPI.fundAllocation(r.id, a.id, connectedWallet, purchaseRecord || txHash);
     currentRaise = result.raise;
+    onchainReceiptState = null;
     render();
+    refreshOnchainReceipt();
   } catch (err) {
     notice('Purchase failed', esc(err.message || 'Could not complete purchase.'));
     btn.disabled = false;
@@ -229,6 +292,7 @@ PactWallet.init({
   onChange: account => {
     connectedWallet = account;
     render();
+    refreshOnchainReceipt();
   },
   onError: err => notice('Wallet unavailable', esc(err.message || 'Could not connect wallet.')),
 });

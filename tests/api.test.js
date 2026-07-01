@@ -10,6 +10,7 @@ const {
   addAllocation,
   deleteAllocation,
   setAllocationFunded,
+  syncOfferingState,
   listRaises,
   listPurchases,
   fetchLiquidSplitHoldersFromExplorer,
@@ -94,6 +95,33 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
     const deleted = deleteAllocation(db, raiseId, allocationId);
     assert.equal(deleted.status, 200);
     assert.equal(deleted.body.raise.allocations.length, 0);
+  });
+});
+
+test('syncs offering contract state onto a raise', () => {
+  withDb(db => {
+    const input = fixtureRaise();
+    input.chainId = 8453;
+    input.offeringAddress = '0x0000000000000000000000000000000000001234';
+    const created = createRaise(db, input);
+
+    const synced = syncOfferingState(db, created.body.id, {
+      remainingUnits: 176,
+      unitsSold: 24,
+      minMet: false,
+      state: 0,
+      raised: 81234,
+      withdrawn: 0,
+    });
+
+    assert.equal(synced.status, 200);
+    assert.equal(synced.body.onchainOffering.unitsSold, 24);
+    assert.equal(synced.body.onchainOffering.raisedUsdcBaseUnits, 81234);
+    assert.equal(synced.body.onchainOffering.minMet, false);
+
+    const read = getRaise(db, created.body.id);
+    assert.equal(read.body.onchainOffering.offeringAddress, input.offeringAddress);
+    assert.equal(read.body.onchainOffering.remainingUnits, 176);
   });
 });
 

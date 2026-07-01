@@ -70,6 +70,16 @@ function parseAmount(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parsePositiveInteger(value) {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : 0;
+}
+
+function parseNonnegativeInteger(value) {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 0 ? n : null;
+}
+
 function isAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
 }
@@ -227,6 +237,8 @@ function summarizePurchase(raise, allocation) {
     amountUsd: allocation.amountUsd,
     fundedAt: allocation.fundedAt,
     txHash: allocation.txHash,
+    tokensPurchased: allocation.tokensPurchased,
+    purchaseCostUsdcBaseUnits: allocation.purchaseCostUsdcBaseUnits,
   };
 }
 
@@ -312,14 +324,50 @@ function setAllocationFunded(db, raiseId, allocationId, funded, input = {}) {
     allocation.buyerWallet = input.buyerWallet;
     if (isTxHash(input.txHash)) allocation.txHash = input.txHash;
     else delete allocation.txHash;
+    const tokensPurchased = parsePositiveInteger(input.tokensPurchased);
+    const purchaseCostUsdcBaseUnits = parsePositiveInteger(input.purchaseCostUsdcBaseUnits);
+    if (tokensPurchased) allocation.tokensPurchased = tokensPurchased;
+    else delete allocation.tokensPurchased;
+    if (purchaseCostUsdcBaseUnits) allocation.purchaseCostUsdcBaseUnits = purchaseCostUsdcBaseUnits;
+    else delete allocation.purchaseCostUsdcBaseUnits;
   } else {
     allocation.status = 'allocated';
     delete allocation.fundedAt;
     delete allocation.buyerWallet;
     delete allocation.txHash;
+    delete allocation.tokensPurchased;
+    delete allocation.purchaseCostUsdcBaseUnits;
   }
   writeRaise(db, raise);
   return { status: 200, body: { raise, allocation } };
+}
+
+function syncOfferingState(db, raiseId, input = {}) {
+  const raise = readRaise(db, raiseId);
+  if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
+  if (!isAddress(raise.offeringAddress)) return { status: 409, body: { error: 'Raise has no offering contract.' } };
+
+  const remainingUnits = parseNonnegativeInteger(input.remainingUnits);
+  const unitsSold = parseNonnegativeInteger(input.unitsSold);
+  const raised = parseNonnegativeInteger(input.raised);
+  const withdrawn = parseNonnegativeInteger(input.withdrawn);
+  const state = parseNonnegativeInteger(input.state);
+  if (remainingUnits == null || unitsSold == null || raised == null || withdrawn == null || state == null || state > 2) {
+    return { status: 400, body: { error: 'Valid offering state is required.' } };
+  }
+
+  raise.onchainOffering = {
+    syncedAt: Date.now(),
+    offeringAddress: raise.offeringAddress,
+    remainingUnits,
+    unitsSold,
+    raisedUsdcBaseUnits: raised,
+    withdrawnUsdcBaseUnits: withdrawn,
+    minMet: !!input.minMet,
+    state,
+  };
+  writeRaise(db, raise);
+  return { status: 200, body: { raise, onchainOffering: raise.onchainOffering } };
 }
 
 function sendResult(res, result) {
@@ -353,6 +401,10 @@ function createApp(options = {}) {
 
   app.get('/api/raises/:id', (req, res) => {
     sendResult(res, getRaise(db, req.params.id));
+  });
+
+  app.post('/api/raises/:id/offering-state', (req, res) => {
+    sendResult(res, syncOfferingState(db, req.params.id, req.body));
   });
 
   app.get('/api/liquid-splits/:address/holders', async (req, res) => {
@@ -395,6 +447,7 @@ if (require.main === module) {
     console.log(`PACT server listening on http://localhost:${port}`);
   });
   process.on('SIGTERM', () => server.close(() => process.exit(0)));
+  setInterval(() => {}, 60000);
 }
 
 module.exports = {
@@ -408,5 +461,6 @@ module.exports = {
   addAllocation,
   deleteAllocation,
   setAllocationFunded,
+  syncOfferingState,
   fetchLiquidSplitHoldersFromExplorer,
 };

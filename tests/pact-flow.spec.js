@@ -209,6 +209,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await page.locator('#createBtn').click();
   await expect(page).toHaveURL(/status\.html\?id=r/);
   await expect(page.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
+  await expect(page.locator('a[href*="basescan.org/address/0x0000000000000000000000000000000000000001"]')).toContainText('0x0000…0001');
   await expect(page.getByRole('term').filter({ hasText: 'Liquid Split' })).toHaveCount(0);
   await expect(page.locator('.font-bold', { hasText: 'Cap table' })).toBeVisible();
   const capTable = page.locator('table').last();
@@ -217,7 +218,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(capRows.nth(0)).toContainText('40.0%');
   await expect(capRows.nth(2)).toContainText('0x0000…0055');
   await expect(capRows.nth(2)).toContainText('5.0%');
-  await expect(capRows.last()).toContainText('Bonding curve: 0x0000…7777');
+  await expect(capRows.last()).toContainText('PACT offering: 0x0000…7777');
   await expect(capRows.last().locator('a')).toHaveAttribute('href', /basescan\.org\/address\/0x0000000000000000000000000000000000007777/i);
   await expect(capRows.last()).toContainText('15.0%');
   await expect(capTable.locator('tfoot')).toContainText('Total');
@@ -271,11 +272,11 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(buyerPage.locator('.wallet-menu a[href*="buy.html"]')).toHaveAttribute('href', /buy\.html\?r=r.*&a=a/);
   await buyerPage.getByRole('heading', { name: 'Cross Context PACT' }).click();
   await buyerPage.goto(copied.replace(/buy\.html\?r=([^&]+)&a=.*/, 'status.html?id=$1'));
-  await expect(buyerPage.getByText('Connect with the issuer, treasury, or a collaborator wallet to manage allocations.')).toBeVisible();
+  await expect(buyerPage.getByText('Connect with the issuer or treasury wallet to manage allocations.')).toBeVisible();
   await expect(buyerPage.locator('.alloc-table')).toHaveCount(0);
 
   await page.reload();
-  await expect(page.getByText('purchased for $1,500')).toBeVisible();
+  await expect(page.getByText('Purchased 50 tokens')).toBeVisible();
   const allocationRows = page.locator('.alloc-table tbody tr');
   await expect(allocationRows.first().getByRole('button', { name: 'Copy link' })).toBeVisible();
   await expect(allocationRows.first().getByRole('button', { name: 'Delete' })).toHaveCount(0);

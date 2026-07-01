@@ -1,6 +1,11 @@
 (function () {
   const FONTS = ['mono', 'serif', 'sans'];
   const FONT_NAMES = { mono: 'Mono', serif: 'Serif', sans: 'Sans' };
+  const FONT_STYLES = {
+    mono: "'Source Code Pro', ui-monospace, SFMono-Regular, monospace",
+    serif: "'Source Serif 4', Georgia, serif",
+    sans: "'Source Sans 3', system-ui, sans-serif",
+  };
   const THEMES = ['light', 'dark'];
   const THEME_NAMES = { light: 'Light', dark: 'Dark' };
 
@@ -24,7 +29,11 @@
   }
 
   function row(kind, value, label, active) {
-    return `<button type="button" data-kind="${kind}" data-value="${value}"><span>${label}</span><span class="setting-check${active ? ' active' : ''}"></span></button>`;
+    const mark = active
+      ? '<span class="setting-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>'
+      : '<span class="setting-check" aria-hidden="true"></span>';
+    const style = kind === 'font' ? ` style="font-family: ${FONT_STYLES[value]}"` : '';
+    return `<button type="button" data-kind="${kind}" data-value="${value}"><span${style}>${label}</span>${mark}</button>`;
   }
 
   function init(options) {

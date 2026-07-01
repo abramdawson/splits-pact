@@ -212,7 +212,7 @@ async function getLiquidSplitTokenBalance(options) {
     functionName: 'balanceOf',
     args: [account, tokenId],
   });
-  const result = await rpcCall('eth_call', [{ to: liquidSplitAddress, data }, 'latest'], options && options.rpcUrl);
+  const result = await rpcCall('eth_call', [{ to: liquidSplitAddress, data }, 'latest'], options && options.rpcUrl, options && options.provider);
   return decodeFunctionResult({
     abi: LS1155_ABI,
     functionName: 'balanceOf',
@@ -234,6 +234,42 @@ async function getTransactionBlockNumber(txHash, rpcUrl) {
   if (!txHash) return null;
   const receipt = await rpcCall('eth_getTransactionReceipt', [txHash], rpcUrl);
   return receipt && receipt.blockNumber ? receipt.blockNumber : null;
+}
+
+async function getOfferingPurchaseFromTx(options) {
+  const txHash = options && options.txHash;
+  if (!txHash) throw new Error('Purchase transaction hash is required.');
+  const receipt = await rpcCall('eth_getTransactionReceipt', [txHash], options && options.rpcUrl, options && options.provider);
+  if (!receipt) throw new Error('Purchase transaction receipt was not found.');
+  return getOfferingPurchaseFromReceipt({
+    receipt,
+    offeringAddress: options && options.offeringAddress,
+    buyer: options && options.buyer,
+  });
+}
+
+async function getOfferingPurchaseFromReceipt(options) {
+  const receipt = options && options.receipt;
+  const offeringAddress = getAddress(options && options.offeringAddress);
+  const buyer = options && options.buyer ? getAddress(options.buyer) : null;
+  for (const log of receipt.logs || []) {
+    if (String(log.address || '').toLowerCase() !== offeringAddress.toLowerCase()) continue;
+    try {
+      const event = decodeEventLog({
+        abi: OFFERING_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+      if (event.eventName !== 'Bought' || !event.args) continue;
+      if (buyer && String(event.args.buyer || '').toLowerCase() !== buyer.toLowerCase()) continue;
+      return {
+        buyer: getAddress(event.args.buyer),
+        units: Number(event.args.units),
+        cost: Number(event.args.cost),
+      };
+    } catch (err) {}
+  }
+  throw new Error('Purchase event was not found in the transaction receipt.');
 }
 
 async function getLiquidSplitHolders(options) {
@@ -503,7 +539,20 @@ async function buyOffering(options) {
   });
   const buyReceipt = await waitForReceipt(provider, buyTxHash, options);
   if (buyReceipt.status && normalizeChainId(buyReceipt.status) === 0) throw new Error('Offering purchase reverted.');
-  return { ...quote, approveTxHash, buyTxHash };
+  let purchase = null;
+  try {
+    purchase = await getOfferingPurchaseFromReceipt({
+      receipt: buyReceipt,
+      offeringAddress: offering,
+      buyer: normalizedBuyer,
+    });
+  } catch (err) {}
+  return {
+    ...quote,
+    ...(purchase ? { units: purchase.units, cost: purchase.cost } : {}),
+    approveTxHash,
+    buyTxHash,
+  };
 }
 
 window.PactLiquidSplit = {
@@ -523,6 +572,7 @@ window.PactLiquidSplit = {
   getOfferingState,
   quoteOfferingPurchase,
   buyOffering,
+  getOfferingPurchaseFromTx,
   getLiquidSplitTokenBalance,
   getLiquidSplitHolders,
 };

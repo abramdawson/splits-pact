@@ -31,6 +31,12 @@
       const query = chainId ? '?chainId=' + encodeURIComponent(chainId) : '';
       return request('/api/liquid-splits/' + encodeURIComponent(address) + '/holders' + query);
     },
+    syncOfferingState(raiseId, state) {
+      return request('/api/raises/' + encodeURIComponent(raiseId) + '/offering-state', {
+        method: 'POST',
+        body: JSON.stringify(state),
+      });
+    },
     addAllocation(raiseId, allocation) {
       return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations', {
         method: 'POST',
@@ -42,10 +48,11 @@
         method: 'DELETE',
       });
     },
-    fundAllocation(raiseId, allocationId, buyerWallet, txHash) {
+    fundAllocation(raiseId, allocationId, buyerWallet, purchase = {}) {
+      const payload = typeof purchase === 'string' ? { txHash: purchase } : (purchase || {});
       return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations/' + encodeURIComponent(allocationId) + '/fund', {
         method: 'POST',
-        body: JSON.stringify({ buyerWallet, txHash }),
+        body: JSON.stringify({ buyerWallet, ...payload }),
       });
     },
     unfundAllocation(raiseId, allocationId) {

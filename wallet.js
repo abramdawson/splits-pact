@@ -102,22 +102,25 @@
   function renderIssuanceMenu() {
     if (!issuances) return '<div class="wallet-menu-note">Loading issuances...</div>';
     const activeRaiseId = currentRaiseId();
+    const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
+    const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
     const rows = issuances.length
-      ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}"><span>${raise.projectName || 'Untitled issuance'}</span><span class="wallet-menu-dot${raise.id === activeRaiseId ? ' active' : ''}"></span></a>`).join('')
+      ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}"><span>${raise.projectName || 'Untitled issuance'}</span>${raise.id === activeRaiseId ? activeMark : inactiveMark}</a>`).join('')
       : '<div class="wallet-menu-note">No issuances yet</div>';
-    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html" class="wallet-menu-action">New issuance</a>';
+    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html" class="wallet-menu-action">+ New issuance</a>';
     return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
   }
 
   function renderPurchaseMenu() {
     if (!purchases) return '<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div><div class="wallet-menu-note">Loading purchases...</div></div>';
     const activeKey = currentPurchaseKey();
-    const rows = purchases.length
-      ? purchases.map(purchase => {
-        const key = purchase.raiseId + ':' + purchase.allocationId;
-        return `<a href="buy.html?r=${encodeURIComponent(purchase.raiseId)}&a=${encodeURIComponent(purchase.allocationId)}"><span>${purchase.projectName || 'Untitled purchase'}</span><span class="wallet-menu-dot${key === activeKey ? ' active' : ''}"></span></a>`;
-      }).join('')
-      : '<div class="wallet-menu-note">No purchases yet</div>';
+    const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
+    const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
+    if (!purchases.length) return '';
+    const rows = purchases.map(purchase => {
+      const key = purchase.raiseId + ':' + purchase.allocationId;
+      return `<a href="buy.html?r=${encodeURIComponent(purchase.raiseId)}&a=${encodeURIComponent(purchase.allocationId)}"><span>${purchase.projectName || 'Untitled purchase'}</span>${key === activeKey ? activeMark : inactiveMark}</a>`;
+    }).join('');
     return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div>${rows}</div>`;
   }
 
