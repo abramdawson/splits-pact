@@ -55,6 +55,7 @@ const TOTAL_SHARES = 1000;
 let currentRaise = null;
 let connectedWallet = null;
 let onchainReceiptState = null;
+let onchainOfferingState = null;
 
 function fmtMoney(n) {
   const value = Number(n) || 0;
@@ -86,7 +87,9 @@ async function loadRaise() {
     currentRaise = null;
   }
   onchainReceiptState = null;
+  onchainOfferingState = null;
   render();
+  refreshOnchainOffering();
   refreshOnchainReceipt();
 }
 
@@ -142,6 +145,22 @@ async function refreshOnchainReceipt() {
   render();
 }
 
+async function refreshOnchainOffering() {
+  const r = currentRaise;
+  if (!r || !r.offeringAddress || !window.PactLiquidSplit) return;
+  try {
+    const state = await PactLiquidSplit.getOfferingState({
+      offeringAddress: r.offeringAddress,
+      buyer: connectedWallet || undefined,
+      provider: PactWallet.provider,
+    });
+    onchainOfferingState = { status: 'loaded', ...state };
+  } catch (err) {
+    onchainOfferingState = { status: 'error', error: err.message || 'Could not read offering state.' };
+  }
+  render();
+}
+
 function notice(title, body) {
   app.innerHTML = `<div class="notice"><div class="font-bold mb-1">${esc(title)}</div><div class="t-muted text-[13px]">${body}</div></div>`;
 }
@@ -153,8 +172,11 @@ function render() {
   if (!a) return notice('Link not found', 'This allocation no longer exists — the project may have removed it.');
 
   const funded = fundedTotal(r);
-  const closeDate = r.createdAt + r.minimum.deadlineDays * 86400000;
-  const raiseClosed = funded >= r.raise.max || Date.now() > closeDate;
+  const offeringState = onchainOfferingState && onchainOfferingState.status === 'loaded' ? onchainOfferingState : null;
+  const closeDate = offeringState && offeringState.closeDate ? offeringState.closeDate * 1000 : r.createdAt + r.minimum.deadlineDays * 86400000;
+  const offeringFailed = offeringState && offeringState.state === 1;
+  const offeringClosed = offeringState && offeringState.state === 2;
+  const raiseClosed = offeringState ? offeringFailed || offeringClosed || (offeringState.state === 0 && Date.now() > closeDate && !offeringState.minMet) : funded >= r.raise.max || Date.now() > closeDate;
   const isPaid = a.status === 'funded';
   const localTokens = isPaid ? tokensForFunded(r, a) : tokensBetween(r, funded, funded + a.amountUsd);
   const receiptState = onchainReceiptState && onchainReceiptState.key === receiptKey(r, a) ? onchainReceiptState : null;
@@ -166,11 +188,7 @@ function render() {
   const purchaseCost = hasPurchaseData ? usdcBaseUnitsToDollars(dbCostBaseUnits) : (hasOnchainReceipt ? usdcBaseUnitsToDollars(receiptState.cost) : a.amountUsd);
   const allocationTokens = isPaid ? (localTokens || purchasedTokens) : tokensBetween(r, funded, funded + a.amountUsd);
   const pricePer = purchasedTokens > 0 ? purchaseCost / purchasedTokens : 0;
-  const gap = r.raise.min - funded;
-  const secured = gap <= 0;
-  const statusWord = raiseClosed ? 'Closed' : 'Open';
-  const note = secured ? 'secured' : (!raiseClosed ? fmtMoney(gap) + ' below threshold' : 'below threshold — refund');
-  const noteColor = secured ? 'var(--ok)' : (!raiseClosed ? 'var(--pending)' : 'var(--danger)');
+  const refundableDeposit = offeringFailed && connectedWallet && offeringState && Number(offeringState.deposit || 0) > 0 ? usdcBaseUnitsToDollars(offeringState.deposit) : 0;
 
   const head = `
     <div class="mb-8">
@@ -193,13 +211,14 @@ function render() {
   const purchaseDetails = isPaid ? `
     <div class="font-bold mb-2">Purchase details</div>
     <dl class="deflist mb-5">
-      <dt>Status</dt><dd class="status-value"><span class="status-state"><span class="status-dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span><span>Purchased</span></span>${txLabel}</dd>
+      <dt>Status</dt><dd class="status-value"><span class="status-state"><span class="status-dot" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span><span>${offeringFailed ? 'Refundable' : 'Purchased'}</span></span>${txLabel}</dd>
       <dt>Ownership</dt><dd>${
         isPaid && receiptState && receiptState.status === 'loading'
           ? '<span class="t-muted">Loading onchain ownership...</span>'
           : `<span>${hasPurchaseData || hasOnchainReceipt ? '' : '~'}${fmtPct(purchasedTokens / r.totalTokens * 100)}</span>${hasPurchaseData || hasOnchainReceipt ? '' : ' <span class="t-muted">estimated</span>'}`
       }</dd>
       <dt>Tokens purchased</dt><dd class="flex items-baseline space-x-2"><span>${fmtTokens(purchasedTokens)}</span><span class="t-muted">${fmtPrice(pricePer)} / token</span></dd>
+      ${offeringFailed ? `<dt>Refund</dt><dd>${connectedWallet ? (refundableDeposit > 0 ? `${fmtMoney(refundableDeposit)} available` : '<span class="t-muted">No refundable deposit for connected wallet.</span>') : '<span class="t-muted">Connect the purchasing wallet to refund.</span>'}</dd>` : ''}
     </dl>` : '';
 
   const roundDetails = `
@@ -210,10 +229,12 @@ function render() {
     </dl>`;
 
   let action;
-  if (isPaid) {
-    action = '';
+  if (isPaid && offeringFailed && refundableDeposit > 0) {
+    action = `<div class="flex justify-end mt-10"><button class="cta px-6 py-3 text-[14px] font-semibold" data-act="refund">Refund ${fmtMoney(refundableDeposit)}</button></div>`;
+  } else if (isPaid) {
+    action = offeringFailed ? `<div class="notice mt-10">This offering failed. Connect the purchasing wallet to claim any available refund. Refunds return USDC and do not move or burn Liquid Split tokens.</div>` : '';
   } else if (raiseClosed) {
-    action = `<div class="notice mt-10">This offering has closed. No further buy-ins can be made.</div>`;
+    action = `<div class="notice mt-10">${offeringFailed ? 'This offering failed because it did not meet the minimum before the close date.' : 'This offering has closed.'} No further buy-ins can be made.</div>`;
   } else if (!connectedWallet) {
     action = `<div class="notice mt-10">Connect a wallet before purchasing this offering.</div>`;
   } else {
@@ -225,6 +246,28 @@ function render() {
 }
 
 app.addEventListener('click', async e => {
+  const refundBtn = e.target.closest('[data-act="refund"]');
+  if (refundBtn) {
+    if (!connectedWallet) {
+      notice('Wallet required', 'Connect the purchasing wallet before refunding.');
+      return;
+    }
+    const r = currentRaise;
+    if (!r || !r.offeringAddress || !window.PactLiquidSplit) return;
+    refundBtn.disabled = true;
+    refundBtn.textContent = 'Refunding...';
+    try {
+      await PactLiquidSplit.refundOffering({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: connectedWallet });
+      onchainOfferingState = null;
+      render();
+      refreshOnchainOffering();
+    } catch (err) {
+      notice('Refund failed', esc(err.message || 'Could not complete refund.'));
+      refundBtn.disabled = false;
+    }
+    return;
+  }
+
   if (!e.target.closest('[data-act="pay"]')) return;
   if (!connectedWallet) {
     notice('Wallet required', 'Connect a wallet before purchasing this offering.');
@@ -257,7 +300,9 @@ app.addEventListener('click', async e => {
     const result = await PactAPI.fundAllocation(r.id, a.id, connectedWallet, purchaseRecord || txHash);
     currentRaise = result.raise;
     onchainReceiptState = null;
+    onchainOfferingState = null;
     render();
+    refreshOnchainOffering();
     refreshOnchainReceipt();
   } catch (err) {
     notice('Purchase failed', esc(err.message || 'Could not complete purchase.'));
@@ -270,7 +315,9 @@ PactWallet.init({
   buttonId: 'walletToggle',
   onChange: account => {
     connectedWallet = account;
+    onchainOfferingState = null;
     render();
+    refreshOnchainOffering();
     refreshOnchainReceipt();
   },
   onError: err => notice('Wallet unavailable', esc(err.message || 'Could not connect wallet.')),

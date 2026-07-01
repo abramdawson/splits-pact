@@ -30,6 +30,13 @@
   .alloc-form { border: 1px dotted var(--line-dotted); border-radius: var(--radius-default); padding: 16px; margin: 48px 0 18px; }
   .alloc-form .blank { height: 34px; }
   .alloc-form .cta { height: 34px; display: inline-flex; align-items: center; }
+  .offering-actions { border: 1px dotted var(--line-dotted); border-radius: var(--radius-default); padding: 14px 16px; margin-top: 24px; }
+  .offering-actions button { height: 34px; display: inline-flex; align-items: center; }
+  .status-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--radius-default); font-size: 12px; font-weight: 600; }
+  .status-chip.funding { background: var(--field-bg); color: var(--ink); }
+  .status-chip.secured { background: var(--ok); color: #fff; }
+  .status-chip.failed { background: var(--danger); color: #fff; }
+  .status-chip.closed { background: var(--ink); color: var(--paper); }
   .alloc-table { table-layout: fixed; }
   .alloc-table td:nth-child(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .alloc-table th:nth-child(2), .alloc-table td:nth-child(2) { width: 100px; }
@@ -197,6 +204,47 @@ function usdcBaseUnitsToDollars(value) {
   return Number(value || 0) / 1000000;
 }
 
+function isSameAddress(a, b) {
+  return !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function offeringStatus(onchainOffering, open, secured) {
+  if (onchainOffering && onchainOffering.state === 1) return { label: 'Failed', tone: 'failed', note: 'Refunds are available to buyers with deposits.' };
+  if (onchainOffering && onchainOffering.state === 2) return { label: 'Closed', tone: 'closed', note: 'The round has been closed by the owner.' };
+  if (secured) return { label: 'Secured', tone: 'secured', note: 'Minimum reached. Proceeds can be withdrawn to treasury.' };
+  if (!open) return { label: 'Below threshold', tone: 'failed', note: 'Close date has passed without meeting the minimum.' };
+  return { label: 'Funding', tone: 'funding', note: 'Minimum has not been reached yet.' };
+}
+
+function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate) {
+  if (!r.offeringAddress || !onchainOffering || !connectedWallet) return [];
+  const isOwner = isSameAddress(connectedWallet, onchainOffering.owner || r.issuerWallet);
+  const claimable = Math.max(0, usdcBaseUnitsToDollars(onchainOffering.raisedUsdcBaseUnits) - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits));
+  const pastClose = Date.now() > closeDate;
+  const actions = [];
+  if (onchainOffering.minMet && claimable > 0) {
+    actions.push({ action: 'withdraw', label: 'Withdraw proceeds', note: 'Permissionless; sends USDC to treasury.' });
+  }
+  if (isOwner && onchainOffering.state === 0 && onchainOffering.minMet) {
+    actions.push({ action: 'close', label: 'Close round', note: 'Owner only; withdraws proceeds and returns unsold tokens to treasury.' });
+  }
+  if (onchainOffering.state === 0 && !onchainOffering.minMet && pastClose) {
+    actions.push({ action: 'mark-failed', label: 'Mark failed', note: 'Permissionless after close date if minimum was not met.' });
+  }
+  return actions;
+}
+
+function offeringActionsHtml(actions) {
+  if (!actions.length) return '';
+  return `<div class="offering-actions no-print">
+    <div class="font-bold mb-2">Offering actions</div>
+    <div class="flex flex-wrap gap-2">
+      ${actions.map(action => `<button class="cta px-4 text-[13px] font-semibold" data-offering-action="${action.action}" type="button">${action.label}</button>`).join('')}
+    </div>
+    <p class="t-muted text-[12px] mt-2">${actions.map(action => action.note).join(' ')}</p>
+  </div>`;
+}
+
 async function readOnchainCapTableFromRpc(r, key) {
   if (!window.PactLiquidSplit) throw new Error('Onchain bundle is unavailable.');
     const [curveBalance, holders] = await Promise.all([
@@ -320,16 +368,15 @@ function render() {
   const currentFraction = onchainOffering ? Math.min(F, purchased / r.totalTokens) : fractionAt(r, m.fundedTotal);
   const valNow = r.valuation.floor + (r.valuation.ceiling - r.valuation.floor) * (F > 0 ? currentFraction / F : 0);
 
-  const closeDate = r.createdAt + r.minimum.deadlineDays * 86400000;
+  const closeDate = onchainOffering && onchainOffering.closeDate ? onchainOffering.closeDate * 1000 : r.createdAt + r.minimum.deadlineDays * 86400000;
   const filled = raisedTotal >= max;
   const pastClose = Date.now() > closeDate;
   const open = onchainOffering ? onchainOffering.state === 0 && (!pastClose || onchainOffering.minMet) : !filled && !pastClose;
   const gap = min - raisedTotal;
   const secured = onchainOffering ? onchainOffering.minMet : gap <= 0;
-  const statusWord = onchainOffering
-    ? (onchainOffering.state === 1 ? 'Failed' : onchainOffering.state === 2 ? 'Closed' : open ? 'Open' : 'Expired')
-    : (open ? 'Open' : 'Closed');
-  const noteText = secured ? 'secured' : (open ? fmtMoney(gap) + ' below threshold' : 'below threshold — refund');
+  const status = offeringStatus(onchainOffering, open, secured);
+  const claimable = onchainOffering ? Math.max(0, raisedTotal - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits)) : 0;
+  const actionItems = offeringActionsFor(r, onchainOffering, connectedWallet, closeDate);
 
   const ordered = [
     ...r.allocations.filter(a => a.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0)),
@@ -407,10 +454,12 @@ function render() {
 
     <div class="font-bold mb-2">Offering status</div>
     <dl class="deflist">
-      <dt>Status</dt><dd class="flex items-baseline space-x-2"><span>${statusWord}</span><span class="t-muted">${noteText}</span></dd>
+      <dt>Status</dt><dd class="flex items-center gap-2"><span class="status-chip ${status.tone}">${status.label}</span><span class="t-muted">${status.note}</span></dd>
       <dt>Tokens sold</dt><dd>${fmtTokens(purchased)} of ${fmtTokens(offerTokens)}</dd>
       <dt>Current valuation</dt><dd class="flex items-baseline space-x-2"><span>${fmtMoney(valNow)} post-money</span><span class="t-muted">${fmtPrice(valNow / r.totalTokens)} / share</span></dd>
+      ${onchainOffering ? `<dt>Proceeds</dt><dd class="flex items-baseline space-x-2"><span>${fmtMoney(claimable)} claimable</span><span class="t-muted">${fmtMoney(usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits))} withdrawn</span></dd>` : ''}
     </dl>
+    ${offeringActionsHtml(actionItems)}
 
     <div class="mt-8">
       <div class="track-wrap">
@@ -469,6 +518,39 @@ app.addEventListener('input', e => {
 });
 
 app.addEventListener('click', async e => {
+  const offeringBtn = e.target.closest('[data-offering-action]');
+  if (offeringBtn) {
+    const r = getRaise();
+    if (!r || !r.offeringAddress || !connectedWallet) return;
+    if (!window.PactLiquidSplit) {
+      toast('Onchain module is unavailable');
+      return;
+    }
+    const action = offeringBtn.dataset.offeringAction;
+    const original = offeringBtn.textContent;
+    offeringBtn.disabled = true;
+    offeringBtn.textContent = 'Confirming...';
+    try {
+      if (action === 'withdraw') {
+        await PactLiquidSplit.withdrawOffering({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: connectedWallet });
+        toast('Proceeds withdrawn to treasury');
+      } else if (action === 'close') {
+        await PactLiquidSplit.closeAndWithdrawOffering({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: connectedWallet });
+        toast('Round closed');
+      } else if (action === 'mark-failed') {
+        await PactLiquidSplit.markOfferingFailed({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: connectedWallet });
+        toast('Offering marked failed');
+      }
+      await refreshOnchainOffering();
+      refreshOnchainCapTable();
+    } catch (err) {
+      toast(err.message || 'Transaction failed');
+      offeringBtn.disabled = false;
+      offeringBtn.textContent = original;
+    }
+    return;
+  }
+
   const btn = e.target.closest('[data-act]');
   if (!btn) return;
   const act = btn.dataset.act, id = btn.dataset.id;

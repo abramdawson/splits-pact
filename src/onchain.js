@@ -412,22 +412,74 @@ async function createOffering(options) {
 
 async function getOfferingState(options) {
   const offeringAddress = getAddress(options && options.offeringAddress);
-  const [remainingUnits, unitsSold, minMet, state, raised, withdrawn] = await Promise.all([
+  const buyer = options && options.buyer ? getAddress(options.buyer) : null;
+  const reads = [
     readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'remainingUnits', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
     readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'unitsSold', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
     readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'minMet', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
     readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'state', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
     readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'raised', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
     readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'withdrawn', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
-  ]);
-  return {
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'raiseMin', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'closeDate', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'owner', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'treasury', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
+  ];
+  if (buyer) reads.push(readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'deposits', args: [buyer], rpcUrl: options && options.rpcUrl, provider: options && options.provider }));
+  const [remainingUnits, unitsSold, minMet, state, raised, withdrawn, raiseMin, closeDate, owner, treasury, deposit] = await Promise.all(reads);
+  const result = {
     remainingUnits: Number(remainingUnits),
     unitsSold: Number(unitsSold),
     minMet,
     state: Number(state),
     raised: Number(raised),
     withdrawn: Number(withdrawn),
+    raiseMin: Number(raiseMin),
+    closeDate: Number(closeDate),
+    owner: getAddress(owner),
+    treasury: getAddress(treasury),
   };
+  if (buyer) result.deposit = Number(deposit);
+  return result;
+}
+
+async function sendOfferingFunction(options) {
+  const provider = options && options.provider;
+  const from = options && options.from;
+  const offeringAddress = getAddress(options && options.offeringAddress);
+  const functionName = options && options.functionName;
+  const args = (options && options.args) || [];
+  if (!provider) throw new Error('Wallet provider is required.');
+  if (!from) throw new Error('Connected wallet is required.');
+  await ensureBase(provider);
+  const txHash = await provider.request({
+    method: 'eth_sendTransaction',
+    params: [{
+      from: getAddress(from),
+      to: offeringAddress,
+      data: encodeFunctionData({ abi: OFFERING_ABI, functionName, args }),
+      chainId: BASE_CHAIN_ID_HEX,
+    }],
+  });
+  const receipt = await waitForReceipt(provider, txHash, options);
+  if (receipt.status && normalizeChainId(receipt.status) === 0) throw new Error('Offering transaction reverted.');
+  return { txHash, receipt };
+}
+
+function withdrawOffering(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'withdraw' });
+}
+
+function closeAndWithdrawOffering(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'closeAndWithdraw' });
+}
+
+function markOfferingFailed(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'markFailed' });
+}
+
+function refundOffering(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'refund' });
 }
 
 async function getOfferingPurchaseState(options) {
@@ -570,6 +622,10 @@ window.PactLiquidSplit = {
   deployLiquidSplit,
   createOffering,
   getOfferingState,
+  withdrawOffering,
+  closeAndWithdrawOffering,
+  markOfferingFailed,
+  refundOffering,
   quoteOfferingPurchase,
   buyOffering,
   getOfferingPurchaseFromTx,

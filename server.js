@@ -351,6 +351,8 @@ function syncOfferingState(db, raiseId, input = {}) {
   const unitsSold = parseNonnegativeInteger(input.unitsSold);
   const raised = parseNonnegativeInteger(input.raised);
   const withdrawn = parseNonnegativeInteger(input.withdrawn);
+  const raiseMin = parseNonnegativeInteger(input.raiseMin);
+  const closeDate = parseNonnegativeInteger(input.closeDate);
   const state = parseNonnegativeInteger(input.state);
   if (remainingUnits == null || unitsSold == null || raised == null || withdrawn == null || state == null || state > 2) {
     return { status: 400, body: { error: 'Valid offering state is required.' } };
@@ -363,6 +365,10 @@ function syncOfferingState(db, raiseId, input = {}) {
     unitsSold,
     raisedUsdcBaseUnits: raised,
     withdrawnUsdcBaseUnits: withdrawn,
+    raiseMinUsdcBaseUnits: raiseMin == null ? undefined : raiseMin,
+    closeDate: closeDate == null ? undefined : closeDate,
+    owner: isAddress(input.owner) ? input.owner : undefined,
+    treasury: isAddress(input.treasury) ? input.treasury : undefined,
     minMet: !!input.minMet,
     state,
   };

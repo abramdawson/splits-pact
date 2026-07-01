@@ -22,7 +22,7 @@ function topicAddress(address) {
 }
 
 async function installWallet(context, account) {
-  await context.addInitScript(({ walletAccount, factory, eventTopic, liquidSplit, offering, paymentToken }) => {
+  await context.addInitScript(({ walletAccount, factory, eventTopic, liquidSplit, offering, paymentToken, treasury }) => {
     const uint256 = n => BigInt(n).toString(16).padStart(64, '0');
     const encodedAddress = address => address.toLowerCase().slice(2).padStart(64, '0');
     const topicAddress = address => '0x' + '0'.repeat(24) + address.slice(2).toLowerCase();
@@ -77,6 +77,11 @@ async function installWallet(context, account) {
             '0xc19d93fb': uint256(0),
             '0xf0ea4bfc': uint256(0),
             '0xc80ec522': uint256(0),
+            '0x6335334c': uint256(1_000_000),
+            '0x48d79b6d': uint256(Math.floor(Date.now() / 1000) + 2_592_000),
+            '0x8da5cb5b': encodedAddress(walletAccount),
+            '0x61d027b3': encodedAddress(treasury),
+            '0xfc7e286d': uint256(0),
             '0xdd62ed3e': uint256(0),
           };
           return '0x' + (resultBySelector[data.slice(0, 10)] || uint256(0));
@@ -92,11 +97,12 @@ async function installWallet(context, account) {
     walletAccount: account,
     factory: offeringFactory,
     eventTopic: offeringCreatedTopic,
-    liquidSplit: fakeLiquidSplit,
-    offering: fakeOffering,
-    paymentToken: baseUsdc,
-  });
-}
+	    liquidSplit: fakeLiquidSplit,
+	    offering: fakeOffering,
+	    paymentToken: baseUsdc,
+	    treasury: addr(1),
+	  });
+	}
 
 async function installBaseRpcMock(context, baseRpcCalls) {
   await context.route(/https:\/\/mainnet\.base\.org\/?/, async route => {
@@ -144,6 +150,11 @@ async function installBaseRpcMock(context, baseRpcCalls) {
         '0xc19d93fb': uint256(0),
         '0xf0ea4bfc': uint256(0),
         '0xc80ec522': uint256(0),
+        '0x6335334c': uint256(1_000_000),
+        '0x48d79b6d': uint256(Math.floor(Date.now() / 1000) + 2_592_000),
+        '0x8da5cb5b': encodedAddress(addr(9)),
+        '0x61d027b3': encodedAddress(addr(1)),
+        '0xfc7e286d': uint256(0),
         '0xdd62ed3e': uint256(0),
       };
       const result = resultBySelector[data.slice(0, 10)] || (() => {
@@ -259,24 +270,24 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   const buyerPage = await buyer.newPage();
   await buyerPage.goto(copied);
   await expect(buyerPage.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
-  await expect(buyerPage.getByText('Not yet purchased')).toBeVisible();
+  await expect(buyerPage.getByText('Allocation details')).toBeVisible();
   await expect(buyerPage.getByText('Connect a wallet before purchasing this offering.')).toBeVisible();
   await buyerPage.locator('#walletToggle').click();
   await expect(buyerPage.locator('#walletToggle')).toContainText('0x0000...0008');
   await buyerPage.getByRole('button', { name: 'Purchase Cross Context PACT' }).click();
-  await expect(buyerPage.getByText('Purchased')).toBeVisible();
+  await expect(buyerPage.getByText('Purchased', { exact: true })).toBeVisible();
   await expect(buyerPage.locator('a[href*="basescan.org/tx/"]')).toHaveAttribute('href', /basescan\.org\/tx\/0x[a-f0-9]{64}/i);
   await buyerPage.locator('#walletToggle').click();
   await expect(buyerPage.locator('.wallet-menu')).toContainText('Your purchases');
   await expect(buyerPage.locator('.wallet-menu')).toContainText('Cross Context PACT');
-  await expect(buyerPage.locator('.wallet-menu a[href*="buy.html"]')).toHaveAttribute('href', /buy\.html\?r=r.*&a=a/);
+  await expect(buyerPage.locator('.wallet-menu a[href*="buy.html"]').first()).toHaveAttribute('href', /buy\.html\?r=r.*&a=a/);
   await buyerPage.getByRole('heading', { name: 'Cross Context PACT' }).click();
   await buyerPage.goto(copied.replace(/buy\.html\?r=([^&]+)&a=.*/, 'status.html?id=$1'));
   await expect(buyerPage.getByText('Connect with the issuer or treasury wallet to manage allocations.')).toBeVisible();
   await expect(buyerPage.locator('.alloc-table')).toHaveCount(0);
 
   await page.reload();
-  await expect(page.getByText('Purchased 50 tokens')).toBeVisible();
+  await expect(page.getByText('Purchased 32 tokens')).toBeVisible();
   const allocationRows = page.locator('.alloc-table tbody tr');
   await expect(allocationRows.first().getByRole('button', { name: 'Copy link' })).toBeVisible();
   await expect(allocationRows.first().getByRole('button', { name: 'Delete' })).toHaveCount(0);
