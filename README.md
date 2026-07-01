@@ -36,7 +36,7 @@ The deployed Liquid Split still uses the stock 1,000 ERC-1155 units with token i
 
 The app prompts the connected wallet to switch to Base (`8453`) before sending the transaction. After the wallet transaction is mined, the client decodes the factory `OfferingCreated` event, then saves `chainId`, `offeringFactory`, `offeringAddress`, `offeringTxHash`, `paymentToken`, `curveParams`, `liquidSplitFactory`, `liquidSplitAddress`, `liquidSplitTxHash`, `bondingCurveAddress`, and `onchainStatus` on the issuance. If the wallet prompt is rejected, the transaction reverts, or the creation event is missing, the local issuance is not saved.
 
-The status page links the Liquid Split to the Splits explorer and the offering contract to BaseScan as the bonding curve holder. Offering status and the progress bar remain allocation-workflow views for now: they are based on generated/funded allocations in the local API. The separate cap table section reads current Liquid Split holder ownership through the local `/api/liquid-splits/:address/holders` proxy, which calls the Splits Explorer public GraphQL API by default. If that indexed read fails, the browser falls back to direct Base RPC reads against `TransferSingle` logs plus current `balanceOf(holder, 0)` values. Older local issuances without onchain fields still render a target cap table from the saved issuance data.
+The status page treats the offering contract as the source of truth for offering state. When a wallet/provider is available, the browser reads `unitsSold`, `remainingUnits`, `raised`, `minMet`, `state`, and `withdrawn` from the `Offering`, then stores that snapshot on the local issuance record. The page uses that snapshot for raised amount, tokens sold, threshold status, current valuation, and the funded progress segment. Pending allocations remain local workflow records until purchased. The separate cap table section treats the Liquid Split as the source of truth for ownership: it reads current holder balances through the local `/api/liquid-splits/:address/holders` proxy, which calls the Splits Explorer public GraphQL API by default. If that indexed read fails, the browser falls back to direct Base RPC reads against `TransferSingle` logs plus current `balanceOf(holder, 0)` values. Older local issuances without onchain fields still render a target cap table from the saved issuance data.
 
 Buyer links now call the on-chain offering when `offeringAddress` is present. The browser reads offering state, converts the fixed dollar allocation into whole Liquid Split units, sends a USDC `approve` if allowance is insufficient, then calls `Offering.buy(unitsWanted, maxCost)`. After the buy transaction confirms, the local allocation is marked purchased so the issuer dashboard reflects the purchase.
 
@@ -138,9 +138,9 @@ The important production setting is `PACT_DB_PATH=/data/pact.sqlite`, with `/dat
 
 The big pieces between this prototype and something real:
 
-1. **Deploy the OfferingFactory on Base** — once the deployer has Base ETH, deploy the factory and commit the address into the generated on-chain bundle.
-2. **Status page on-chain offering state** — replace allocation-derived status with `Offering` reads for raised amount, units sold, minimum status, close date, and claimable treasury proceeds.
-3. **Owner and buyer actions** — expose `withdraw()`, `closeAndWithdraw()`, `markFailed()`, and `refund()` in the relevant success/failure states.
+1. **Owner and buyer actions** — expose `withdraw()`, `closeAndWithdraw()`, `markFailed()`, and `refund()` in the relevant success/failure states.
+2. **Allocation / cap table reconciliation** — keep allocation buyer names connected to on-chain holder addresses where purchases happen through payment links, and decide how much historical backfill is worth supporting for old local test records.
+3. **Production deployment hardening** — wire Fly.io config against a persistent SQLite volume, configure `SPLITS_EXPLORER_API_KEY`, and document the production environment variables.
 4. **Wallet authorization** *(future / stretch)* — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
 
 Allocation links are unauthenticated for now (security through obscurity); per-buyer link binding is deferred.
