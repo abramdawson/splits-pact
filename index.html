@@ -8,11 +8,14 @@
   // set theme before paint to avoid flash
   (function () {
     try {
-      var s = localStorage.getItem('bc-theme');
-      var d = s ? s === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-      if (d) document.documentElement.classList.add('dark');
-      var f = localStorage.getItem('bc-font');
-      if (f && f !== 'mono') document.documentElement.setAttribute('data-font', f);
+      var style = localStorage.getItem('bc-style');
+      if (!style) {
+        var f = localStorage.getItem('bc-font');
+        var t = localStorage.getItem('bc-theme');
+        style = f === 'serif' ? 'chambers' : (t === 'dark' || f === 'mono' ? 'cipher' : 'clarity');
+      }
+      if (style && style !== 'clarity') document.documentElement.setAttribute('data-style', style);
+      if (style === 'cipher') document.documentElement.classList.add('dark');
     } catch (e) {}
   })();
 </script>
@@ -20,7 +23,7 @@
 <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Sans+3:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:opsz,wght@6..72,200..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <style>
   .disabled-tip-wrap { position: relative; display: inline-flex; }
