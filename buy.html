@@ -23,8 +23,6 @@
 <link rel="stylesheet" href="app.css">
 <style>
   .notice { border: 1px dotted var(--line-dotted); padding: 16px; text-align: center; }
-  .debug-toggle { position: fixed; right: 16px; bottom: 16px; z-index: 10; height: 36px; display: flex; align-items: center; font-family: inherit; font-size: 11px; color: var(--muted); background: var(--paper); border: 1px dashed var(--line-dotted); border-radius: var(--radius-default); padding: 0 10px; cursor: pointer; }
-  .debug-toggle:hover { color: var(--ink); }
   .status-value { display: flex; align-items: center; gap: 0.5rem; }
   .status-state { display: inline-flex; align-items: center; gap: 6px; }
   .status-dot { width: 14px; height: 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--ok); color: #fff; flex: 0 0 auto; }
@@ -38,8 +36,6 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.7 3.4 10.5 2h3l.8 1.4 1.8.7 1.5-.4 2.1 2.1-.4 1.5.7 1.8 1.4.8v3l-1.4.8-.7 1.8.4 1.5-2.1 2.1-1.5-.4-1.8.7-.8 1.4h-3l-.8-1.4-1.8-.7-1.5.4-2.1-2.1.4-1.5-.7-1.8L2 13.5v-3l1.4-.8.7-1.8-.4-1.5 2.1-2.1 1.5.4 1.8-.7Z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
   </div>
-  <button id="debugToggle" class="debug-toggle">debug</button>
-
   <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
     <div class="paper w-full max-w-xl px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]">
       <div id="app"></div>
@@ -217,17 +213,15 @@ function render() {
   if (isPaid) {
     action = '';
   } else if (raiseClosed) {
-    action = `<div class="notice mb-8">This offering has closed. No further buy-ins can be made.</div>`;
+    action = `<div class="notice mt-10">This offering has closed. No further buy-ins can be made.</div>`;
   } else if (!connectedWallet) {
-    action = `<div class="notice mb-8">Connect a wallet before purchasing this offering.</div>`;
+    action = `<div class="notice mt-10">Connect a wallet before purchasing this offering.</div>`;
   } else {
-    action = `<div class="flex justify-end mb-8"><button class="cta px-6 py-3 text-[14px] font-semibold" data-act="pay">${r.offeringAddress ? 'Purchase' : 'Mark purchased'} ${esc(r.projectName)}</button></div>`;
+    action = `<div class="flex justify-end mt-10"><button class="cta px-6 py-3 text-[14px] font-semibold" data-act="pay">${r.offeringAddress ? 'Purchase' : 'Mark purchased'} ${esc(r.projectName)}</button></div>`;
   }
 
   app.innerHTML = head + roundDetails + allocationDetails + purchaseDetails + action;
 
-  const dbgBtn = $('debugToggle');
-  if (dbgBtn) dbgBtn.textContent = isPaid ? 'debug · mark unpaid' : 'debug · mark paid';
 }
 
 app.addEventListener('click', async e => {
@@ -270,21 +264,6 @@ app.addEventListener('click', async e => {
     btn.disabled = false;
   }
 });
-
-// dev-only: flip this allocation between unpaid and paid
-const dbg = $('debugToggle');
-if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-  dbg.addEventListener('click', () => {
-    const r = currentRaise;
-    const a = r && (r.allocations || []).find(x => x.id === allocId);
-    if (!a) return;
-    const req = a.status === 'funded' ? PactAPI.unfundAllocation(r.id, a.id) : PactAPI.fundAllocation(r.id, a.id, connectedWallet);
-    req.then(result => { currentRaise = result.raise; render(); })
-      .catch(err => notice('Debug update failed', esc(err.message || 'Could not update allocation.')));
-  });
-} else {
-  dbg.style.display = 'none';
-}
 
 PactSettings.init({ buttonId: 'settingsToggle', onChange: render });
 PactWallet.init({

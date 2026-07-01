@@ -138,9 +138,11 @@ The important production setting is `PACT_DB_PATH=/data/pact.sqlite`, with `/dat
 
 The big pieces between this prototype and something real:
 
-1. **Owner and buyer actions** — expose `withdraw()`, `closeAndWithdraw()`, `markFailed()`, and `refund()` in the relevant success/failure states.
-2. **Allocation / cap table reconciliation** — keep allocation buyer names connected to on-chain holder addresses where purchases happen through payment links, and decide how much historical backfill is worth supporting for old local test records.
-3. **Production deployment hardening** — wire Fly.io config against a persistent SQLite volume, configure `SPLITS_EXPLORER_API_KEY`, and document the production environment variables.
-4. **Wallet authorization** *(future / stretch)* — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
+1. **Round success / failure UI** — make below-threshold, secured, failed, and closed states obvious. The current `secured` secondary text next to `Open` is too subtle for a successful raise.
+2. **Owner actions** — expose `withdraw()` for claimable proceeds, `closeAndWithdraw()` for explicitly closing a successful round, and returned unsold Liquid Split units. Show claimable and withdrawn proceeds from the `Offering` contract.
+3. **Failure and refund flow** — expose `markFailed()` once the close date has passed without meeting the minimum, and add buyer-facing `refund()` for failed offerings. Explain clearly that refunds return USDC and do not move or burn Liquid Split units.
+4. **Allocation / purchase reconciliation** — for new purchases, keep payment-link buyer names connected to on-chain holder addresses. Do not backfill old local test records. Keep the cap table public because Liquid Split ownership is public, but only show buyer names to authorized issuer/treasury views.
+5. **Production deployment hardening** — wire Fly.io config against a persistent SQLite volume, configure `SPLITS_EXPLORER_API_KEY`, and document the production environment variables.
+6. **Wallet authorization** *(future / stretch)* — use signed messages or another auth mechanism so issuer dashboard actions are gated by the issuer wallet and buyer actions are bound to the connected buyer.
 
 Allocation links are unauthenticated for now (security through obscurity); per-buyer link binding is deferred.
