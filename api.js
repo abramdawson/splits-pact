@@ -37,6 +37,12 @@
         body: JSON.stringify(state),
       });
     },
+    syncCapTableState(raiseId, state) {
+      return request('/api/raises/' + encodeURIComponent(raiseId) + '/cap-table-state', {
+        method: 'POST',
+        body: JSON.stringify(state),
+      });
+    },
     addAllocation(raiseId, allocation) {
       return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations', {
         method: 'POST',

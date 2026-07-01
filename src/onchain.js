@@ -19,6 +19,35 @@ const {
 
 const { decodeEventLog, decodeFunctionResult, encodeEventTopics, encodeFunctionData, getAddress, zeroAddress } = require('viem');
 
+const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
+const MULTICALL3_ABI = [
+  {
+    inputs: [
+      {
+        components: [
+          { name: 'target', type: 'address' },
+          { name: 'allowFailure', type: 'bool' },
+          { name: 'callData', type: 'bytes' },
+        ],
+        name: 'calls',
+        type: 'tuple[]',
+      },
+    ],
+    name: 'aggregate3',
+    outputs: [
+      {
+        components: [
+          { name: 'success', type: 'bool' },
+          { name: 'returnData', type: 'bytes' },
+        ],
+        name: 'returnData',
+        type: 'tuple[]',
+      },
+    ],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+];
 const LIQUID_SPLIT_FACTORY_ABI = [
   {
     anonymous: false,
@@ -203,6 +232,22 @@ async function readContract({ address, abi, functionName, args, rpcUrl, provider
   return decodeFunctionResult({ abi, functionName, data: result });
 }
 
+async function readContractsMulticall({ calls, rpcUrl, provider }) {
+  const encodedCalls = calls.map(call => ({
+    target: getAddress(call.address),
+    allowFailure: false,
+    callData: encodeFunctionData({ abi: call.abi, functionName: call.functionName, args: call.args || [] }),
+  }));
+  const data = encodeFunctionData({ abi: MULTICALL3_ABI, functionName: 'aggregate3', args: [encodedCalls] });
+  const result = await rpcCall('eth_call', [{ to: MULTICALL3_ADDRESS, data }, 'latest'], rpcUrl, provider);
+  const decoded = decodeFunctionResult({ abi: MULTICALL3_ABI, functionName: 'aggregate3', data: result });
+  return decoded.map((item, index) => {
+    if (!item.success) throw new Error('Multicall read failed.');
+    const call = calls[index];
+    return decodeFunctionResult({ abi: call.abi, functionName: call.functionName, data: item.returnData });
+  });
+}
+
 async function getLiquidSplitTokenBalance(options) {
   const liquidSplitAddress = getAddress(options && options.liquidSplitAddress);
   const account = getAddress(options && options.account);
@@ -230,9 +275,9 @@ function topicAddress(topic) {
   return getAddress('0x' + topic.slice(-40));
 }
 
-async function getTransactionBlockNumber(txHash, rpcUrl) {
+async function getTransactionBlockNumber(txHash, rpcUrl, provider) {
   if (!txHash) return null;
-  const receipt = await rpcCall('eth_getTransactionReceipt', [txHash], rpcUrl);
+  const receipt = await rpcCall('eth_getTransactionReceipt', [txHash], rpcUrl, provider);
   return receipt && receipt.blockNumber ? receipt.blockNumber : null;
 }
 
@@ -276,7 +321,7 @@ async function getLiquidSplitHolders(options) {
   const liquidSplitAddress = getAddress(options && options.liquidSplitAddress);
   const tokenId = BigInt(options && options.tokenId != null ? options.tokenId : 0);
   const fromBlock = (options && options.fromBlock)
-    || await getTransactionBlockNumber(options && options.deploymentTxHash, options && options.rpcUrl)
+    || await getTransactionBlockNumber(options && options.deploymentTxHash, options && options.rpcUrl, options && options.provider)
     || '0x0';
   const transferTopic = encodeEventTopics({
     abi: LS1155_ABI,
@@ -287,7 +332,7 @@ async function getLiquidSplitHolders(options) {
     fromBlock,
     toBlock: 'latest',
     topics: [transferTopic],
-  }], options && options.rpcUrl);
+  }], options && options.rpcUrl, options && options.provider);
   const addresses = new Set();
   for (const log of logs || []) {
     if (!log.data || log.data.length < 130 || !log.topics || log.topics.length < 4) continue;
@@ -305,6 +350,7 @@ async function getLiquidSplitHolders(options) {
       account: address,
       tokenId,
       rpcUrl: options && options.rpcUrl,
+      provider: options && options.provider,
     });
     if (balance > 0n) holders.push({ address, balance: Number(balance) });
   }
@@ -412,22 +458,88 @@ async function createOffering(options) {
 
 async function getOfferingState(options) {
   const offeringAddress = getAddress(options && options.offeringAddress);
-  const [remainingUnits, unitsSold, minMet, state, raised, withdrawn] = await Promise.all([
-    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'remainingUnits', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
-    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'unitsSold', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
-    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'minMet', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
-    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'state', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
-    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'raised', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
-    readContract({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'withdrawn', args: [], rpcUrl: options && options.rpcUrl, provider: options && options.provider }),
-  ]);
-  return {
+  const buyer = options && options.buyer ? getAddress(options.buyer) : null;
+  const calls = [
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'remainingUnits', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'unitsSold', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'minMet', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'state', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'raised', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'withdrawn', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'raiseMin', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'closeDate', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'owner', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'treasury', args: [] },
+  ];
+  if (buyer) calls.push({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'deposits', args: [buyer] });
+  let values;
+  try {
+    values = await readContractsMulticall({ calls, rpcUrl: options && options.rpcUrl, provider: options && options.provider });
+  } catch (err) {
+    values = [];
+    for (const call of calls) {
+      values.push(await readContract({ ...call, rpcUrl: options && options.rpcUrl, provider: options && options.provider }));
+    }
+  }
+  const [remainingUnits, unitsSold, minMet, state, raised, withdrawn, raiseMin, closeDate, owner, treasury, deposit] = values;
+  const result = {
     remainingUnits: Number(remainingUnits),
     unitsSold: Number(unitsSold),
     minMet,
     state: Number(state),
     raised: Number(raised),
     withdrawn: Number(withdrawn),
+    raiseMin: Number(raiseMin),
+    closeDate: Number(closeDate),
+    owner: getAddress(owner),
+    treasury: getAddress(treasury),
   };
+  if (buyer) result.deposit = Number(deposit);
+  return result;
+}
+
+async function sendOfferingFunction(options) {
+  const provider = options && options.provider;
+  const from = options && options.from;
+  const offeringAddress = getAddress(options && options.offeringAddress);
+  const functionName = options && options.functionName;
+  const args = (options && options.args) || [];
+  if (!provider) throw new Error('Wallet provider is required.');
+  if (!from) throw new Error('Connected wallet is required.');
+  await ensureBase(provider);
+  const txHash = await provider.request({
+    method: 'eth_sendTransaction',
+    params: [{
+      from: getAddress(from),
+      to: offeringAddress,
+      data: encodeFunctionData({ abi: OFFERING_ABI, functionName, args }),
+      chainId: BASE_CHAIN_ID_HEX,
+    }],
+  });
+  const receipt = await waitForReceipt(provider, txHash, options);
+  if (receipt.status && normalizeChainId(receipt.status) === 0) throw new Error('Offering transaction reverted.');
+  return { txHash, receipt };
+}
+
+function withdrawOffering(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'withdraw' });
+}
+
+function closeAndWithdrawOffering(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'closeAndWithdraw' });
+}
+
+function markOfferingFailed(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'markFailed' });
+}
+
+function refundOffering(options) {
+  return sendOfferingFunction({ ...(options || {}), functionName: 'refund' });
+}
+
+function refundAllOffering(options) {
+  const buyers = ((options && options.buyers) || []).map(getAddress);
+  return sendOfferingFunction({ ...(options || {}), functionName: 'refundAll', args: [buyers] });
 }
 
 async function getOfferingPurchaseState(options) {
@@ -570,6 +682,11 @@ window.PactLiquidSplit = {
   deployLiquidSplit,
   createOffering,
   getOfferingState,
+  withdrawOffering,
+  closeAndWithdrawOffering,
+  markOfferingFailed,
+  refundOffering,
+  refundAllOffering,
   quoteOfferingPurchase,
   buyOffering,
   getOfferingPurchaseFromTx,
