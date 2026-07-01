@@ -9,6 +9,7 @@
   let statusTimer = null;
   let activeProvider = null;
   let issuances = null;
+  let purchases = null;
   const providers = [];
 
   const short = address => address ? address.slice(0, 6) + '...' + address.slice(-4) : '';
@@ -91,6 +92,13 @@
     return path === 'status.html' ? new URLSearchParams(location.search).get('id') : null;
   }
 
+  function currentPurchaseKey() {
+    const path = location.pathname.split('/').pop();
+    if (path !== 'buy.html') return null;
+    const params = new URLSearchParams(location.search);
+    return params.get('r') + ':' + params.get('a');
+  }
+
   function renderIssuanceMenu() {
     if (!issuances) return '<div class="wallet-menu-note">Loading issuances...</div>';
     const activeRaiseId = currentRaiseId();
@@ -101,26 +109,42 @@
     return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
   }
 
+  function renderPurchaseMenu() {
+    if (!purchases) return '<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div><div class="wallet-menu-note">Loading purchases...</div></div>';
+    const activeKey = currentPurchaseKey();
+    const rows = purchases.length
+      ? purchases.map(purchase => {
+        const key = purchase.raiseId + ':' + purchase.allocationId;
+        return `<a href="buy.html?r=${encodeURIComponent(purchase.raiseId)}&a=${encodeURIComponent(purchase.allocationId)}"><span>${purchase.projectName || 'Untitled purchase'}</span><span class="wallet-menu-dot${key === activeKey ? ' active' : ''}"></span></a>`;
+      }).join('')
+      : '<div class="wallet-menu-note">No purchases yet</div>';
+    return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div>${rows}</div>`;
+  }
+
   function renderMenu() {
     if (!menu) return;
     menu.innerHTML = account
-      ? '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu()
+      ? '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu() + renderPurchaseMenu()
       : providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
   }
 
-  async function loadIssuances() {
-    if (!account || !window.PactAPI || !PactAPI.listRaises) {
+  async function loadWalletRecords() {
+    if (!account || !window.PactAPI) {
       issuances = [];
+      purchases = [];
       return;
     }
     issuances = null;
+    purchases = null;
     renderMenu();
-    try {
-      const result = await PactAPI.listRaises(account);
-      issuances = result.raises || [];
-    } catch (err) {
-      issuances = [];
-    }
+    await Promise.all([
+      PactAPI.listRaises
+        ? PactAPI.listRaises(account).then(result => { issuances = result.raises || []; }).catch(() => { issuances = []; })
+        : Promise.resolve().then(() => { issuances = []; }),
+      PactAPI.listPurchases
+        ? PactAPI.listPurchases(account).then(result => { purchases = result.purchases || []; }).catch(() => { purchases = []; })
+        : Promise.resolve().then(() => { purchases = []; }),
+    ]);
     renderMenu();
   }
 
@@ -128,7 +152,7 @@
     if (!menu) return;
     renderMenu();
     menu.classList.toggle('show');
-    if (account && menu.classList.contains('show')) loadIssuances();
+    if (account && menu.classList.contains('show')) loadWalletRecords();
   }
 
   async function copyAddress(target) {

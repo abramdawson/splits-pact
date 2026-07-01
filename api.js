@@ -24,6 +24,9 @@
     listRaises(issuerWallet) {
       return request('/api/raises?issuerWallet=' + encodeURIComponent(issuerWallet));
     },
+    listPurchases(buyerWallet) {
+      return request('/api/purchases?buyerWallet=' + encodeURIComponent(buyerWallet));
+    },
     getLiquidSplitHolders(address, chainId) {
       const query = chainId ? '?chainId=' + encodeURIComponent(chainId) : '';
       return request('/api/liquid-splits/' + encodeURIComponent(address) + '/holders' + query);
@@ -39,10 +42,10 @@
         method: 'DELETE',
       });
     },
-    fundAllocation(raiseId, allocationId, buyerWallet) {
+    fundAllocation(raiseId, allocationId, buyerWallet, txHash) {
       return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations/' + encodeURIComponent(allocationId) + '/fund', {
         method: 'POST',
-        body: JSON.stringify({ buyerWallet }),
+        body: JSON.stringify({ buyerWallet, txHash }),
       });
     },
     unfundAllocation(raiseId, allocationId) {

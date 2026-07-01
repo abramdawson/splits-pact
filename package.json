@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "build:onchain": "esbuild src/onchain.js --bundle --format=iife --global-name=PactOnchainBundle --minify --outfile=dist/onchain.bundle.js",
+    "build:contracts": "forge build && node scripts/export-contracts.js",
+    "build:onchain": "npm run build:contracts && esbuild src/onchain.js --bundle --format=iife --global-name=PactOnchainBundle --minify --outfile=dist/onchain.bundle.js",
     "start": "node server.js",
     "test": "npm run build:onchain && node --test tests/*.test.js",
     "test:e2e": "npm run build:onchain && playwright test"

@@ -2,7 +2,10 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   TEMP_BONDING_CURVE_ADDRESS,
+  buildOfferingFactoryInputs,
   buildLiquidSplitAllocations,
+  deriveOfferingCurve,
+  toUsdcBaseUnits,
 } = require('../src/liquid-split-core');
 
 const addr = n => '0x' + String(n).padStart(40, '0');
@@ -38,4 +41,29 @@ test('rejects allocations that do not total one thousand units', () => {
     holders: [{ address: addr(1), tokens: 700 }],
     newMoney: { tokens: 200 },
   }), /total 1,000/);
+});
+
+test('builds factory inputs without needing the future offering address', () => {
+  const result = buildOfferingFactoryInputs({
+    holders: [
+      { address: addr(3), tokens: 300 },
+      { address: addr(1), tokens: 500 },
+    ],
+    newMoney: { tokens: 200 },
+  });
+
+  assert.deepEqual(result.holderAccounts, [addr(1), addr(3)]);
+  assert.deepEqual(result.holderAllocations, [500, 300]);
+  assert.equal(result.offeringUnits, 200);
+});
+
+test('derives conservative USDC curve params', () => {
+  const result = deriveOfferingCurve({
+    valuation: { floor: 40000, ceiling: 60000 },
+    newMoney: { tokens: 200 },
+  });
+
+  assert.equal(result.priceStart, 40000000);
+  assert.equal(result.priceSlope, 100000);
+  assert.equal(toUsdcBaseUnits(123.4567899), 123456789);
 });

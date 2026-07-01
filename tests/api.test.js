@@ -11,6 +11,7 @@ const {
   deleteAllocation,
   setAllocationFunded,
   listRaises,
+  listPurchases,
   fetchLiquidSplitHoldersFromExplorer,
 } = require('../server');
 
@@ -70,15 +71,25 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
     assert.equal(added.body.allocation.status, 'allocated');
 
     const allocationId = added.body.allocation.id;
-    const funded = setAllocationFunded(db, raiseId, allocationId, true, { buyerWallet: '0x0000000000000000000000000000000000000008' });
+    const txHash = '0x' + '8'.repeat(64);
+    const funded = setAllocationFunded(db, raiseId, allocationId, true, { buyerWallet: '0x0000000000000000000000000000000000000008', txHash });
     assert.equal(funded.status, 200);
     assert.equal(funded.body.allocation.status, 'funded');
     assert.equal(funded.body.allocation.buyerWallet, '0x0000000000000000000000000000000000000008');
+    assert.equal(funded.body.allocation.txHash, txHash);
     assert.ok(funded.body.allocation.fundedAt);
+
+    const purchases = listPurchases(db, '0x0000000000000000000000000000000000000008');
+    assert.equal(purchases.status, 200);
+    assert.equal(purchases.body.purchases.length, 1);
+    assert.equal(purchases.body.purchases[0].raiseId, raiseId);
+    assert.equal(purchases.body.purchases[0].allocationId, allocationId);
+    assert.equal(purchases.body.purchases[0].txHash, txHash);
 
     const unfunded = setAllocationFunded(db, raiseId, allocationId, false);
     assert.equal(unfunded.body.allocation.status, 'allocated');
     assert.equal('fundedAt' in unfunded.body.allocation, false);
+    assert.equal('txHash' in unfunded.body.allocation, false);
 
     const deleted = deleteAllocation(db, raiseId, allocationId);
     assert.equal(deleted.status, 200);
@@ -86,12 +97,13 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
   });
 });
 
-test('lists raises for an issuer wallet', () => {
+test('lists raises for issuer, treasury, and collaborator wallets', () => {
   withDb(db => {
     const first = createRaise(db, fixtureRaise());
     const other = fixtureRaise();
     other.projectName = 'Other Issuer';
     other.issuerWallet = '0x0000000000000000000000000000000000000007';
+    other.proceedsAddress = '0x0000000000000000000000000000000000000008';
     createRaise(db, other);
 
     const listed = listRaises(db, '0x0000000000000000000000000000000000000009');
@@ -99,6 +111,22 @@ test('lists raises for an issuer wallet', () => {
     assert.equal(listed.body.raises.length, 1);
     assert.equal(listed.body.raises[0].id, first.body.id);
     assert.equal(listed.body.raises[0].projectName, 'Test PACT');
+
+    const treasuryListed = listRaises(db, '0x0000000000000000000000000000000000000001');
+    assert.equal(treasuryListed.status, 200);
+    assert.equal(treasuryListed.body.raises.length, 1);
+    assert.equal(treasuryListed.body.raises[0].id, first.body.id);
+
+    const withCollaborator = fixtureRaise();
+    withCollaborator.projectName = 'Collaborator PACT';
+    withCollaborator.issuerWallet = '0x0000000000000000000000000000000000000005';
+    withCollaborator.proceedsAddress = '0x0000000000000000000000000000000000000004';
+    withCollaborator.collaborators = ['0x0000000000000000000000000000000000000006'];
+    const collaboratorRaise = createRaise(db, withCollaborator);
+    const collaboratorListed = listRaises(db, '0x0000000000000000000000000000000000000006');
+    assert.equal(collaboratorListed.status, 200);
+    assert.equal(collaboratorListed.body.raises.length, 1);
+    assert.equal(collaboratorListed.body.raises[0].id, collaboratorRaise.body.id);
   });
 });
 

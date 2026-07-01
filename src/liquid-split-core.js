@@ -9,9 +9,11 @@ const BASE_CHAIN_PARAMS = {
 };
 
 const LIQUID_SPLIT_FACTORY_ADDRESS = '0xdEcd8B99b7F763e16141450DAa5EA414B7994831';
+const BASE_USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const TEMP_BONDING_CURVE_ADDRESS = '0xc6C8F6E4A73B2971C725359bb595Da1306FE5257';
 const TOTAL_LIQUID_SPLIT_UNITS = 1000;
 const ZERO_DISTRIBUTOR_FEE = 0;
+const USDC_SCALE = 1000000;
 
 function isAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
@@ -69,13 +71,66 @@ function buildLiquidSplitAllocations(issuance, options = {}) {
   };
 }
 
+function buildOfferingFactoryInputs(issuance, options = {}) {
+  if (!issuance || typeof issuance !== 'object') throw new Error('Issuance is required.');
+  const getAddress = options.getAddress;
+  const allocations = buildLiquidSplitAllocations(issuance, {
+    getAddress,
+    bondingCurveAddress: options.offeringAddress || TEMP_BONDING_CURVE_ADDRESS,
+  });
+  const offeringUnits = Number(issuance.newMoney && issuance.newMoney.tokens);
+  if (!Number.isInteger(offeringUnits) || offeringUnits <= 0) {
+    throw new Error('Offering units must be a positive whole number.');
+  }
+
+  const holderAccounts = [];
+  const holderAllocations = [];
+  allocations.accounts.forEach((account, index) => {
+    const units = allocations.initAllocations[index];
+    if (String(account).toLowerCase() === String(options.offeringAddress || TEMP_BONDING_CURVE_ADDRESS).toLowerCase()) return;
+    holderAccounts.push(account);
+    holderAllocations.push(units);
+  });
+
+  const total = holderAllocations.reduce((sum, units) => sum + units, 0) + offeringUnits;
+  if (total !== TOTAL_LIQUID_SPLIT_UNITS) {
+    throw new Error('Offering factory allocations must total 1,000 token units.');
+  }
+
+  return { holderAccounts, holderAllocations, offeringUnits };
+}
+
+function toUsdcBaseUnits(dollars) {
+  const n = Number(dollars);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.floor(n * USDC_SCALE);
+}
+
+function deriveOfferingCurve(issuance) {
+  const floor = Number(issuance && issuance.valuation && issuance.valuation.floor);
+  const ceiling = Number(issuance && issuance.valuation && issuance.valuation.ceiling);
+  const offeringUnits = Number(issuance && issuance.newMoney && issuance.newMoney.tokens);
+  if (!(floor > 0) || !(ceiling >= floor) || !(offeringUnits > 0)) {
+    throw new Error('Valid valuation band and offering units are required.');
+  }
+  const priceStart = Math.max(1, Math.floor(floor * USDC_SCALE / TOTAL_LIQUID_SPLIT_UNITS));
+  const slopeRaw = Math.floor((ceiling - floor) * USDC_SCALE / TOTAL_LIQUID_SPLIT_UNITS / offeringUnits);
+  const priceSlope = ceiling > floor ? Math.max(1, slopeRaw) : 0;
+  return { priceStart, priceSlope };
+}
+
 module.exports = {
   BASE_CHAIN_ID,
   BASE_CHAIN_ID_HEX,
   BASE_CHAIN_PARAMS,
   LIQUID_SPLIT_FACTORY_ADDRESS,
+  BASE_USDC_ADDRESS,
   TEMP_BONDING_CURVE_ADDRESS,
   TOTAL_LIQUID_SPLIT_UNITS,
   ZERO_DISTRIBUTOR_FEE,
+  USDC_SCALE,
   buildLiquidSplitAllocations,
+  buildOfferingFactoryInputs,
+  deriveOfferingCurve,
+  toUsdcBaseUnits,
 };

@@ -74,6 +74,10 @@ function isAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
 }
 
+function isTxHash(value) {
+  return /^0x[a-fA-F0-9]{64}$/.test(String(value || '').trim());
+}
+
 function parseHolderAddress(holderId) {
   const address = String(holderId || '').split('-').pop();
   return isAddress(address) ? address : null;
@@ -215,14 +219,51 @@ function summarizeRaise(raise) {
   };
 }
 
+function summarizePurchase(raise, allocation) {
+  return {
+    raiseId: raise.id,
+    allocationId: allocation.id,
+    projectName: raise.projectName,
+    amountUsd: allocation.amountUsd,
+    fundedAt: allocation.fundedAt,
+    txHash: allocation.txHash,
+  };
+}
+
+function raiseWallets(raise) {
+  return [
+    raise && raise.issuerWallet,
+    raise && raise.proceedsAddress,
+    ...((raise && Array.isArray(raise.collaborators)) ? raise.collaborators : []),
+  ]
+    .filter(Boolean)
+    .map(wallet => String(wallet).toLowerCase());
+}
+
+function canAccessRaise(raise, wallet) {
+  return raiseWallets(raise).includes(String(wallet || '').toLowerCase());
+}
+
 function listRaises(db, input = {}) {
   const issuerWallet = String(typeof input === 'string' ? input : input.issuerWallet || '').toLowerCase();
   if (!isAddress(issuerWallet)) return { status: 400, body: { error: 'Issuer wallet is required.' } };
   const raises = db.prepare('SELECT data FROM raises ORDER BY created_at DESC').all()
     .map(row => JSON.parse(row.data))
-    .filter(raise => String(raise.issuerWallet || '').toLowerCase() === issuerWallet)
+    .filter(raise => canAccessRaise(raise, issuerWallet))
     .map(summarizeRaise);
   return { status: 200, body: { raises } };
+}
+
+function listPurchases(db, input = {}) {
+  const buyerWallet = String(typeof input === 'string' ? input : input.buyerWallet || '').toLowerCase();
+  if (!isAddress(buyerWallet)) return { status: 400, body: { error: 'Buyer wallet is required.' } };
+  const purchases = db.prepare('SELECT data FROM raises ORDER BY created_at DESC').all()
+    .map(row => JSON.parse(row.data))
+    .flatMap(raise => (raise.allocations || [])
+      .filter(allocation => allocation.status === 'funded' && String(allocation.buyerWallet || '').toLowerCase() === buyerWallet)
+      .map(allocation => summarizePurchase(raise, allocation)))
+    .sort((a, b) => (b.fundedAt || 0) - (a.fundedAt || 0));
+  return { status: 200, body: { purchases } };
 }
 
 function addAllocation(db, raiseId, input) {
@@ -269,10 +310,13 @@ function setAllocationFunded(db, raiseId, allocationId, funded, input = {}) {
     allocation.status = 'funded';
     allocation.fundedAt = Date.now();
     allocation.buyerWallet = input.buyerWallet;
+    if (isTxHash(input.txHash)) allocation.txHash = input.txHash;
+    else delete allocation.txHash;
   } else {
     allocation.status = 'allocated';
     delete allocation.fundedAt;
     delete allocation.buyerWallet;
+    delete allocation.txHash;
   }
   writeRaise(db, raise);
   return { status: 200, body: { raise, allocation } };
@@ -301,6 +345,10 @@ function createApp(options = {}) {
 
   app.get('/api/raises', (req, res) => {
     sendResult(res, listRaises(db, req.query));
+  });
+
+  app.get('/api/purchases', (req, res) => {
+    sendResult(res, listPurchases(db, req.query));
   });
 
   app.get('/api/raises/:id', (req, res) => {
@@ -356,6 +404,7 @@ module.exports = {
   createRaise,
   getRaise,
   listRaises,
+  listPurchases,
   addAllocation,
   deleteAllocation,
   setAllocationFunded,

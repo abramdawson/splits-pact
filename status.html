@@ -38,6 +38,7 @@
   .tokencell .tip2 { position: absolute; bottom: calc(100% + 8px); right: 0; white-space: nowrap; background: var(--ink); color: var(--paper); font-size: 11px; line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; text-decoration: none; }
   .tokencell .tip2::after { content: ''; position: absolute; top: 100%; right: 12px; border: 4px solid transparent; border-top-color: var(--ink); }
   .tokencell:hover .tip2 { opacity: 1; }
+  .notice { border: 1px dotted var(--line-dotted); padding: 14px 16px; text-align: center; color: var(--muted); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -63,7 +64,14 @@
 const $ = id => document.getElementById(id);
 const app = $('app');
 
-const fmtMoney = n => '$' + Math.round(n).toLocaleString('en-US');
+function fmtMoney(n) {
+  const value = Number(n) || 0;
+  const hasCents = Math.abs(value - Math.round(value)) > 0.000001 || (value > 0 && value < 1);
+  return '$' + value.toLocaleString('en-US', {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+}
 const fmtTokens = n => Math.round(n).toLocaleString('en-US');
 const fmtPct = n => Number(n || 0).toFixed(1) + '%';
 const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -79,8 +87,19 @@ const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/'
 const raiseId = new URLSearchParams(location.search).get('id');
 let currentRaise = null;
 let onchainCapTableState = null;
+let connectedWallet = null;
 
 function getRaise() { return currentRaise; }
+function accessWallets(r) {
+  return [
+    r && r.issuerWallet,
+    r && r.proceedsAddress,
+    ...((r && Array.isArray(r.collaborators)) ? r.collaborators : []),
+  ].filter(Boolean).map(wallet => String(wallet).toLowerCase());
+}
+function canManageRaise(r) {
+  return !!connectedWallet && accessWallets(r).includes(String(connectedWallet).toLowerCase());
+}
 async function loadRaise() {
   if (!raiseId) {
     currentRaise = null;
@@ -257,6 +276,7 @@ function render() {
   }
 
   const m = tokenMath(r);
+  const canManage = canManageRaise(r);
   const max = r.raise.max, min = r.raise.min;
   const offerTokens = r.maxDilutionPct / 100 * r.totalTokens;
   const purchased = tokensBetween(r, 0, m.fundedTotal);
@@ -298,8 +318,7 @@ function render() {
       <td class="num">${fmtMoney(a.amountUsd)}</td>
       <td>${status}</td>
       <td class="num whitespace-nowrap">
-        ${funded ? '' : `<button class="act" data-act="copy" data-id="${a.id}">Copy link</button>`}
-        <button class="act danger" data-act="del" data-id="${a.id}">Delete</button>
+        ${canManage ? `<button class="act" data-act="copy" data-id="${a.id}">Copy link</button> ${funded ? '' : `<button class="act danger" data-act="del" data-id="${a.id}">Delete</button>`}` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -356,20 +375,20 @@ function render() {
       </div>
     </div>
 
-    <div class="alloc-form no-print">
+    ${canManage ? `<div class="alloc-form no-print">
       <div class="font-bold mb-3">New allocation</div>
       <div class="flex items-center gap-3">
         <input id="allocName" class="blank flex-1" placeholder="Buyer name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-        <div class="flex items-center gap-1"><span class="t-muted">$</span><input id="allocAmount" class="blank w-28 text-left" inputmode="numeric" placeholder="0" autocomplete="off"></div>
+        <div class="flex items-center gap-1"><span class="t-muted">$</span><input id="allocAmount" class="blank w-28 text-left" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>
         <button class="cta px-5 text-[13px] font-semibold" data-act="add">Generate link</button>
       </div>
       <p id="allocError" class="hidden text-[13px] t-danger mt-2"></p>
-    </div>
+    </div>` : `<div class="notice no-print mt-10 mb-4">Connect with the issuer, treasury, or a collaborator wallet to manage allocations.</div>`}
 
-    <table class="exhibit alloc-table mt-10">
+    ${canManage ? `<table class="exhibit alloc-table mt-10">
       <thead><tr><th>Buyer</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="4" class="px-2 py-5 text-center t-muted">No allocations yet. Create a private allocation using the above form.</td></tr>`}</tbody>
-    </table>
+    </table>` : ''}
 
     <div class="font-bold mb-2 mt-10">Cap table</div>
     ${capTableNote ? `<p class="text-[12px] t-muted mb-2">${capTableNote}</p>` : ''}
@@ -387,8 +406,12 @@ function updateAddBtn() {
 
 app.addEventListener('input', e => {
   if (e.target.id === 'allocAmount') {
-    const d = e.target.value.replace(/[^0-9]/g, '');
-    e.target.value = d ? Number(d).toLocaleString('en-US') : '';
+    const raw = e.target.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
+    const parts = raw.split('.');
+    const intPart = parts[0].replace(/^0+(?=\d)/, '');
+    const decPart = parts.length > 1 ? parts.slice(1).join('').slice(0, 2) : null;
+    const intDisplay = intPart ? Number(intPart).toLocaleString('en-US') : '';
+    e.target.value = decPart == null ? intDisplay : (intDisplay || '0') + '.' + decPart;
   }
   if (e.target.id === 'allocAmount' || e.target.id === 'allocName') updateAddBtn();
 });
@@ -399,6 +422,10 @@ app.addEventListener('click', async e => {
   const act = btn.dataset.act, id = btn.dataset.id;
   const r = getRaise();
   if (!r) return;
+  if (!canManageRaise(r)) {
+    toast('Connect an authorized wallet to manage this issuance');
+    return;
+  }
 
   if (act === 'add') {
     const name = $('allocName').value.trim();
@@ -425,6 +452,7 @@ app.addEventListener('click', async e => {
   if (act === 'copy') { copy(buyLink(id)); return; }
   if (act === 'del') {
     const a = r.allocations.find(x => x.id === id);
+    if (a && a.status === 'funded') return;
     if (a && confirm('Delete the allocation for ' + a.name + '?')) {
       try {
         const result = await PactAPI.deleteAllocation(r.id, id);
@@ -439,7 +467,13 @@ app.addEventListener('click', async e => {
 });
 
 PactSettings.init({ buttonId: 'settingsToggle', onChange: render });
-PactWallet.init({ buttonId: 'walletToggle' });
+PactWallet.init({
+  buttonId: 'walletToggle',
+  onChange: account => {
+    connectedWallet = account;
+    render();
+  },
+});
 loadRaise();
 </script>
 <script>

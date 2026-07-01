@@ -424,16 +424,22 @@ function buildIssuance() {
 
 async function saveIssuance(data) {
   if (!window.PactLiquidSplit) throw new Error('Onchain deployment module is unavailable.');
-  const deployment = await PactLiquidSplit.deployLiquidSplit({
+  const deployment = await PactLiquidSplit.createOffering({
     provider: PactWallet.provider,
     issuance: data,
     owner: connectedWallet,
   });
   data.chainId = deployment.chainId;
-  data.liquidSplitFactory = deployment.factoryAddress;
+  data.offeringFactory = deployment.factoryAddress;
+  data.offeringAddress = deployment.offeringAddress;
+  data.offeringTxHash = deployment.transactionHash;
+  data.paymentToken = deployment.paymentToken;
+  data.onchainCloseDate = deployment.closeDate;
+  data.curveParams = deployment.curve;
+  data.liquidSplitFactory = PactLiquidSplit.LIQUID_SPLIT_FACTORY_ADDRESS;
   data.liquidSplitAddress = deployment.liquidSplitAddress;
   data.liquidSplitTxHash = deployment.transactionHash;
-  data.bondingCurveAddress = PactLiquidSplit.TEMP_BONDING_CURVE_ADDRESS;
+  data.bondingCurveAddress = deployment.offeringAddress;
   data.onchainStatus = 'deployed';
   const raise = await PactAPI.createRaise(data);
   window.location.href = 'status.html?id=' + encodeURIComponent(raise.id);
@@ -448,7 +454,7 @@ $('createBtn').addEventListener('click', async () => {
   }
   const btn = $('createBtn');
   btn.disabled = true;
-  btn.textContent = 'Deploying Liquid Split...';
+  btn.textContent = 'Creating offering...';
   try {
     await saveIssuance(buildIssuance());
   } catch (err) {

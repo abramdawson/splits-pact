@@ -44,6 +44,7 @@
 
 <script src="api.js"></script>
 <script src="wallet.js"></script>
+<script src="dist/onchain.bundle.js"></script>
 <script src="settings.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -54,13 +55,22 @@ const TOTAL_SHARES = 1000;
 let currentRaise = null;
 let connectedWallet = null;
 
-const fmtMoney = n => '$' + Math.round(n).toLocaleString('en-US');
+function fmtMoney(n) {
+  const value = Number(n) || 0;
+  const hasCents = Math.abs(value - Math.round(value)) > 0.000001 || (value > 0 && value < 1);
+  return '$' + value.toLocaleString('en-US', {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+}
 const fmtTokens = n => Math.round(n).toLocaleString('en-US');
 const fmtPct = v => (Math.round(v * 10) / 10).toString().replace(/\.0$/, '') + '%';
 const fmtPrice = p => '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
+const isTxHash = value => /^0x[a-fA-F0-9]{64}$/.test(String(value || ''));
+const basescanTx = hash => 'https://basescan.org/tx/' + encodeURIComponent(hash);
 
 async function loadRaise() {
   if (!raiseId) {
@@ -126,15 +136,18 @@ function render() {
       <p class="text-[13px] t-muted mt-1">This is a Purchase Agreement for Community Tokens (a &ldquo;PACT&rdquo;). You&rsquo;re buying community tokens that align holders with the project and carry no inherent value of their own. Your purchase is refundable in full if the round doesn&rsquo;t reach its minimum threshold of ${fmtMoney(r.raise.min)} by ${fmtDate(closeDate)}.</p>
     </div>`;
 
-  const txHash = '0x7a3f9c8e2b1d4f60a9e7c3518d2bf04a6e1c9b7d3f80a25e4c6917bd3f02a8c1';
-  const txShort = txHash.slice(0, 10) + '…' + txHash.slice(-8);
+  const txHash = isTxHash(a.txHash) ? a.txHash : '';
+  const txShort = txHash ? txHash.slice(0, 10) + '…' + txHash.slice(-8) : '';
+  const txLabel = txHash
+    ? `<a class="linkbtn" href="${basescanTx(txHash)}" target="_blank" rel="noreferrer">${txShort}</a>`
+    : '<span class="t-muted">Recorded locally</span>';
 
   const purchaseDetails = `
     <div class="font-bold mb-2">${isPaid ? 'Purchase details' : 'Allocation details'}</div>
     <dl class="deflist mb-5">
       <dt>Buyer</dt><dd>${esc(a.name)}</dd>
       <dt>Amount</dt><dd>${fmtMoney(a.amountUsd)}</dd>
-      <dt>Status</dt><dd class="flex items-baseline space-x-2"><span class="${isPaid ? 'text-ok' : 'text-pending'}">${isPaid ? 'Purchased' : 'Not yet purchased'}</span>${isPaid ? `<span class="t-muted">Transaction ID: ${txShort}</span>` : ''}</dd>
+      <dt>Status</dt><dd class="flex items-baseline space-x-2"><span class="${isPaid ? 'text-ok' : 'text-pending'}">${isPaid ? 'Purchased' : 'Not yet purchased'}</span>${isPaid ? `<span class="t-muted">Transaction: ${txLabel}</span>` : ''}</dd>
       <dt>Ownership</dt><dd class="flex items-baseline space-x-2"><span>${isPaid ? '' : '~'}${fmtPct(tokens / r.totalTokens * 100)}</span><span class="t-muted">${fmtTokens(tokens)} tokens</span></dd>
     </dl>`;
 
@@ -153,7 +166,7 @@ function render() {
   } else if (!connectedWallet) {
     action = `<div class="notice mb-8">Connect a wallet before purchasing this offering.</div>`;
   } else {
-    action = `<div class="flex justify-end mb-8"><button class="cta px-6 py-3 text-[14px] font-semibold" data-act="pay">Purchase ${esc(r.projectName)}</button></div>`;
+    action = `<div class="flex justify-end mb-8"><button class="cta px-6 py-3 text-[14px] font-semibold" data-act="pay">${r.offeringAddress ? 'Purchase' : 'Mark purchased'} ${esc(r.projectName)}</button></div>`;
   }
 
   app.innerHTML = head + roundDetails + purchaseDetails + action;
@@ -171,12 +184,27 @@ app.addEventListener('click', async e => {
   const r = currentRaise;
   const a = r && (r.allocations || []).find(x => x.id === allocId);
   if (!a) return;
+  const btn = e.target.closest('[data-act="pay"]');
+  btn.disabled = true;
+  btn.textContent = r.offeringAddress ? 'Purchasing...' : 'Marking purchased...';
   try {
-    const result = await PactAPI.fundAllocation(r.id, a.id, connectedWallet);
+    let txHash = null;
+    if (r.offeringAddress) {
+      if (!window.PactLiquidSplit) throw new Error('Onchain module is unavailable.');
+      const purchase = await PactLiquidSplit.buyOffering({
+        provider: PactWallet.provider,
+        issuance: r,
+        buyer: connectedWallet,
+        amountUsd: a.amountUsd,
+      });
+      txHash = purchase.buyTxHash;
+    }
+    const result = await PactAPI.fundAllocation(r.id, a.id, connectedWallet, txHash);
     currentRaise = result.raise;
     render();
   } catch (err) {
     notice('Purchase failed', esc(err.message || 'Could not complete purchase.'));
+    btn.disabled = false;
   }
 });
 
@@ -208,7 +236,7 @@ loadRaise();
 </script>
 <script>
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    const watch = [location.href, 'app.css', 'api.js', 'wallet.js', 'settings.js'];
+    const watch = [location.href, 'app.css', 'api.js', 'wallet.js', 'settings.js', 'dist/onchain.bundle.js'];
     let stamp = null;
     setInterval(async () => {
       try {
