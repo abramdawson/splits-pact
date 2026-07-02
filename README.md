@@ -120,11 +120,11 @@ npm run test:e2e
 
 See [Deployment](docs/deployment.md). The short version:
 
-1. Create the Fly app.
-2. Create a persistent volume mounted at `/data`.
-3. Set `PACT_DB_PATH=/data/pact.sqlite`.
-4. Set `SPLITS_EXPLORER_API_KEY` as a Fly secret.
-5. Deploy with the included `Dockerfile`.
+1. Fly app `splits-pact` runs from the checked-in `fly.toml`.
+2. Persistent volume `pact_data` is mounted at `/data`.
+3. `SPLITS_EXPLORER_API_KEY` is set as a Fly secret.
+4. GitHub secret `FLY_API_TOKEN` enables auto-deploys from `main`.
+5. Manual deploys still work with `fly deploy -a splits-pact`.
 
 ## Current Limitations
 
