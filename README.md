@@ -8,7 +8,8 @@ The app currently targets Base mainnet and uses USDC for purchases.
 
 ## App Surfaces
 
-- `index.html` - issuer form for creating a PACT issuance and deploying the onchain offering.
+- `index.html` - short explainer for what PACT is and how it works.
+- `create.html` - issuer form for creating a PACT issuance and deploying the onchain offering.
 - `status.html` - issuer dashboard for allocations, offering state, lifecycle actions, and cap table.
 - `buy.html` - buyer-facing purchase and receipt page.
 - `server.js` - single Node process serving static files plus `/api`.

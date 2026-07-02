@@ -204,7 +204,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   });
   const page = await issuer.newPage();
 
-  await page.goto('/');
+  await page.goto('/create.html');
   await expect(page.locator('#createBtn')).toHaveText('Create issuance');
   await expect(page.locator('#createBtn')).toBeDisabled();
   await page.locator('#projectName').fill('Cross Context PACT');
@@ -212,7 +212,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await page.locator('input[data-k="name"]').nth(0).fill(addr(2));
   await page.locator('input[data-k="name"]').nth(1).fill(addr(3));
   await expect(page.locator('#createBtn')).toBeDisabled();
-  await expect(page.locator('#ctaHint')).toContainText('Connect wallet to create issuance');
+  await expect(page.locator('#createTip')).toContainText('Connect wallet to create issuance');
   await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
   await expect(page.locator('#createBtn')).toHaveText('Create issuance');
@@ -235,10 +235,11 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(capTable.locator('tfoot')).toContainText('Total');
   await expect(capTable.locator('tfoot')).toContainText('1,000');
   await expect(capTable.locator('tfoot')).toContainText('100.0%');
-  await expect(capTable.locator('tfoot')).toContainText('Liquid Split');
+  await expect(capTable.locator('tfoot')).toContainText('Verify this cap table by viewing the split');
   await expect(capTable.locator('tfoot a[href*="explorer.splits.org/accounts/"]')).toHaveAttribute('href', /explorer\.splits\.org\/accounts\/0x0000000000000000000000000000000000001234\/\?chainId=8453/i);
   expect(baseRpcCalls.some(call => call.method === 'eth_getLogs')).toBe(false);
-  await expect(page.getByText('0 of 200')).toBeVisible();
+  await expect(page.getByRole('term').filter({ hasText: 'Available' })).toBeVisible();
+  await expect(page.getByRole('definition').filter({ hasText: '150 tokens' })).toBeVisible();
   await expect(page.locator('.font-bold', { hasText: '$0' })).toBeVisible();
   const walletRequests = await page.evaluate(() => JSON.parse(sessionStorage.getItem('mock-wallet-requests') || '[]'));
   expect(walletRequests.some(r => r.method === 'wallet_switchEthereumChain' && r.params[0].chainId === '0x2105')).toBe(true);
@@ -254,6 +255,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible();
   await page.getByRole('heading', { name: 'Cross Context PACT' }).click();
 
+  await page.getByRole('button', { name: '+ New allocation' }).click();
   await page.locator('#allocName').fill('Buyer One');
   await page.locator('#allocAmount').fill('1,500');
   await page.getByRole('button', { name: 'Generate link' }).click();
@@ -283,7 +285,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(buyerPage.locator('.wallet-menu a[href*="buy.html"]').first()).toHaveAttribute('href', /buy\.html\?r=r.*&a=a/);
   await buyerPage.getByRole('heading', { name: 'Cross Context PACT' }).click();
   await buyerPage.goto(copied.replace(/buy\.html\?r=([^&]+)&a=.*/, 'status.html?id=$1'));
-  await expect(buyerPage.getByText('Connect with the issuer or treasury wallet to manage allocations.')).toBeVisible();
+  await expect(buyerPage.getByText("Connect with the issuer's treasury wallet to manage the offering.")).toBeVisible();
   await expect(buyerPage.locator('.alloc-table')).toHaveCount(0);
 
   await page.reload();
@@ -302,15 +304,15 @@ test('wallet button shows a visible error when no provider is available', async 
   await expect(page.locator('#walletToggle')).toContainText('No wallet found');
 });
 
-test('settings menu exposes font and theme options', async ({ page }) => {
+test('settings menu exposes style options', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();
   const menu = page.locator('.settings-menu');
   await expect(menu).toBeVisible();
-  await expect(menu).toContainText('Font');
-  await expect(menu).toContainText('Theme');
-  await expect(menu).toContainText('Mono');
-  await expect(menu).toContainText('Light');
+  await expect(menu).toContainText('Style');
+  await expect(menu).toContainText('Clarity');
+  await expect(menu).toContainText('Cipher');
+  await expect(menu).toContainText('Chambers');
 });
 
 test('wallet picker can choose among multiple announced providers', async ({ browser }) => {

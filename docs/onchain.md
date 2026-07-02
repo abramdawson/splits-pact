@@ -23,7 +23,7 @@ therefore in `dist/onchain.bundle.js`.
 
 ## Creation Flow
 
-`index.html` calls `OfferingFactory.createOffering(...)` through the connected
+`create.html` calls `OfferingFactory.createOffering(...)` through the connected
 wallet. The factory:
 
 1. Deploys a per-issuance `Offering`.

@@ -84,7 +84,7 @@
 
   function currentPageIsNewIssuance() {
     const path = location.pathname.split('/').pop();
-    return path === '' || path === 'index.html';
+    return path === 'create.html';
   }
 
   function currentRaiseId() {
@@ -107,7 +107,7 @@
     const rows = issuances.length
       ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}"><span>${raise.projectName || 'Untitled issuance'}</span>${raise.id === activeRaiseId ? activeMark : inactiveMark}</a>`).join('')
       : '<div class="wallet-menu-note">No issuances yet</div>';
-    const newLink = currentPageIsNewIssuance() ? '' : '<a href="index.html" class="wallet-menu-action">+ New issuance</a>';
+    const newLink = currentPageIsNewIssuance() ? '' : '<a href="create.html" class="wallet-menu-action">+ New issuance</a>';
     return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
   }
 
