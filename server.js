@@ -475,9 +475,10 @@ function createApp(options = {}) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT || DEFAULT_PORT);
+  const host = process.env.HOST || '0.0.0.0';
   const app = createApp();
-  const server = app.listen(port, () => {
-    console.log(`PACT server listening on http://localhost:${port}`);
+  const server = app.listen(port, host, () => {
+    console.log(`PACT server listening on http://${host}:${port}`);
   });
   process.on('SIGTERM', () => server.close(() => process.exit(0)));
   setInterval(() => {}, 60000);

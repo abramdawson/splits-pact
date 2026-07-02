@@ -11,6 +11,9 @@
     "express": "^5.2.1",
     "viem": "^2.54.0"
   },
+  "overrides": {
+    "ws": "8.21.0"
+  },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "esbuild": "^0.28.1"
