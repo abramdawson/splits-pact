@@ -322,7 +322,7 @@ async function refreshOnchainOffering() {
       offeringAddress: r.offeringAddress,
       provider,
     });
-    onchainOfferingState = { status: 'loaded', ...state };
+    onchainOfferingState = normalizeOfferingState({ status: 'loaded', ...state });
     try {
       const result = await PactAPI.syncOfferingState(r.id, state);
       currentRaise = result.raise;
@@ -336,11 +336,22 @@ async function refreshOnchainOffering() {
   }
 }
 
+function normalizeOfferingState(state) {
+  if (!state) return state;
+  const raised = state.raisedUsdcBaseUnits == null ? state.raised : state.raisedUsdcBaseUnits;
+  const withdrawn = state.withdrawnUsdcBaseUnits == null ? state.withdrawn : state.withdrawnUsdcBaseUnits;
+  return {
+    ...state,
+    raisedUsdcBaseUnits: Number(raised || 0),
+    withdrawnUsdcBaseUnits: Number(withdrawn || 0),
+  };
+}
+
 function offeringSnapshot(r) {
-  if (onchainOfferingState && onchainOfferingState.status === 'loaded') return onchainOfferingState;
+  if (onchainOfferingState && onchainOfferingState.status === 'loaded') return normalizeOfferingState(onchainOfferingState);
   const s = r && r.onchainOffering;
   return s && s.offeringAddress && String(s.offeringAddress).toLowerCase() === String(r.offeringAddress || '').toLowerCase()
-    ? s
+    ? normalizeOfferingState(s)
     : null;
 }
 
