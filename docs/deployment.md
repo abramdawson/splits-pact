@@ -33,7 +33,8 @@ SQLite database on next boot.
 
 ## Fly.io Setup
 
-Use `fly.toml.example` as the starting point.
+The repository includes the production `fly.toml` for the `splits-pact` Fly app.
+`fly.toml.example` is kept as a template for creating another app.
 
 1. Create the app:
 
@@ -47,13 +48,7 @@ Use `fly.toml.example` as the starting point.
    fly volumes create pact_data --size 1 --region sjc
    ```
 
-3. Copy the example config:
-
-   ```sh
-   cp fly.toml.example fly.toml
-   ```
-
-4. Confirm `fly.toml` includes:
+3. Confirm `fly.toml` includes:
 
    ```toml
    [env]
@@ -65,23 +60,49 @@ Use `fly.toml.example` as the starting point.
      destination = "/data"
    ```
 
-5. Set secrets:
+4. Set Fly app secrets:
 
    ```sh
    fly secrets set SPLITS_EXPLORER_API_KEY=...
    ```
 
-6. Deploy:
+5. Deploy manually when needed:
 
    ```sh
    fly deploy
    ```
 
-7. Check health:
+6. Check health:
 
    ```sh
    curl https://<app-name>.fly.dev/healthz
    ```
+
+## GitHub Auto-Deploy
+
+Pushes to `main` deploy automatically through `.github/workflows/deploy.yml`.
+The workflow:
+
+1. Installs Node dependencies.
+2. Installs Foundry.
+3. Runs `npm audit --omit=dev`.
+4. Runs `npm test`.
+5. Runs `forge test`.
+6. Runs `flyctl deploy --remote-only --config fly.toml`.
+
+GitHub Actions requires the repository secret:
+
+```sh
+FLY_API_TOKEN=...
+```
+
+The current secret is an app-scoped Fly deploy token for `splits-pact`, expiring
+after one year. Rotate it with:
+
+```sh
+fly tokens create deploy -a splits-pact -n github-actions-main-deploy -x 8760h
+gh secret set FLY_API_TOKEN -R abramdawson/splits-pact
+```
 
 ## Pre-Deploy Checklist
 
@@ -89,6 +110,7 @@ Use `fly.toml.example` as the starting point.
 - `npm test` passes.
 - `forge test` passes.
 - `npm run test:e2e` passes or is intentionally skipped with a reason.
+- `npm audit --omit=dev` passes.
 - `dist/onchain.bundle.js` is current.
 - `src/generated/offering-contracts.js` contains the intended Base
   `OFFERING_FACTORY_ADDRESS`.
