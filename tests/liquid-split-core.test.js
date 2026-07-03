@@ -1,12 +1,12 @@
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const {
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
   TEMP_BONDING_CURVE_ADDRESS,
   buildOfferingFactoryInputs,
   buildLiquidSplitAllocations,
   deriveOfferingCurve,
   toUsdcBaseUnits,
-} = require('../src/liquid-split-core');
+} from '../src/liquid-split-core.js';
 
 const addr = n => '0x' + String(n).padStart(40, '0');
 

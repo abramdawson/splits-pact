@@ -1,6 +1,6 @@
-const { defineConfig } = require('@playwright/test');
+import { defineConfig } from '@playwright/test';
 
-module.exports = defineConfig({
+export default defineConfig({
   testDir: './tests',
   testMatch: /.*\.spec\.js/,
   use: {
@@ -8,6 +8,7 @@ module.exports = defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
+    // Serves the Vite build output from dist/ plus /api; `npm run test:e2e` builds first.
     command: 'node server.js',
     url: 'http://localhost:7228/healthz',
     reuseExistingServer: !process.env.CI,

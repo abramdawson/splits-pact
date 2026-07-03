@@ -111,7 +111,6 @@ gh secret set FLY_API_TOKEN -R abramdawson/splits-pact
 - `forge test` passes.
 - `npm run test:e2e` passes or is intentionally skipped with a reason.
 - `npm audit --omit=dev` passes.
-- `dist/onchain.bundle.js` is current.
 - `src/generated/offering-contracts.js` contains the intended Base
   `OFFERING_FACTORY_ADDRESS`.
 - `PACT_DB_PATH` points at the mounted volume path.

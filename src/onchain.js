@@ -1,23 +1,33 @@
-const {
+import {
   BASE_CHAIN_ID,
   BASE_CHAIN_ID_HEX,
   BASE_CHAIN_PARAMS,
   BASE_USDC_ADDRESS,
   LIQUID_SPLIT_FACTORY_ADDRESS,
   TEMP_BONDING_CURVE_ADDRESS,
-  ZERO_DISTRIBUTOR_FEE,
-  buildLiquidSplitAllocations,
   buildOfferingFactoryInputs,
   deriveOfferingCurve,
   toUsdcBaseUnits,
-} = require('./liquid-split-core');
-const {
+} from './liquid-split-core.js';
+import {
   OFFERING_FACTORY_ADDRESS,
   OFFERING_FACTORY_ABI,
   OFFERING_ABI,
-} = require('./generated/offering-contracts');
+} from './generated/offering-contracts.js';
 
-const { decodeEventLog, decodeFunctionResult, encodeEventTopics, encodeFunctionData, getAddress, zeroAddress } = require('viem');
+import { decodeEventLog, decodeFunctionResult, encodeEventTopics, encodeFunctionData, getAddress, zeroAddress } from 'viem';
+
+export {
+  BASE_CHAIN_ID,
+  BASE_CHAIN_ID_HEX,
+  BASE_USDC_ADDRESS,
+  LIQUID_SPLIT_FACTORY_ADDRESS,
+  TEMP_BONDING_CURVE_ADDRESS,
+  OFFERING_FACTORY_ADDRESS,
+  OFFERING_FACTORY_ABI,
+  OFFERING_ABI,
+  deriveOfferingCurve,
+};
 
 const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 const MULTICALL3_ABI = [
@@ -45,28 +55,6 @@ const MULTICALL3_ABI = [
       },
     ],
     stateMutability: 'payable',
-    type: 'function',
-  },
-];
-const LIQUID_SPLIT_FACTORY_ABI = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: 'contract LS1155CloneImpl', name: 'ls', type: 'address' },
-    ],
-    name: 'CreateLS1155Clone',
-    type: 'event',
-  },
-  {
-    inputs: [
-      { internalType: 'address[]', name: 'accounts', type: 'address[]' },
-      { internalType: 'uint32[]', name: 'initAllocations', type: 'uint32[]' },
-      { internalType: 'uint32', name: '_distributorFee', type: 'uint32' },
-      { internalType: 'address', name: 'owner', type: 'address' },
-    ],
-    name: 'createLiquidSplitClone',
-    outputs: [{ internalType: 'contract LS1155CloneImpl', name: 'ls', type: 'address' }],
-    stateMutability: 'nonpayable',
     type: 'function',
   },
 ];
@@ -166,26 +154,6 @@ async function waitForReceipt(provider, txHash, options = {}) {
   throw new Error('Timed out waiting for Liquid Split transaction receipt.');
 }
 
-function decodeLiquidSplitAddress(receipt) {
-  const logs = receipt && receipt.logs ? receipt.logs : [];
-  for (const log of logs) {
-    if (String(log.address || '').toLowerCase() !== LIQUID_SPLIT_FACTORY_ADDRESS.toLowerCase()) continue;
-    try {
-      // The factory return value is not available from eth_sendTransaction; the
-      // explorer and SDK use this event as the durable source of the clone address.
-      const event = decodeEventLog({
-        abi: LIQUID_SPLIT_FACTORY_ABI,
-        data: log.data,
-        topics: log.topics,
-      });
-      if (event.eventName === 'CreateLS1155Clone' && event.args && event.args.ls) {
-        return getAddress(event.args.ls);
-      }
-    } catch (err) {}
-  }
-  throw new Error('Liquid Split creation event was not found in the transaction receipt.');
-}
-
 function decodeOfferingCreated(receipt, factoryAddress) {
   const normalizedFactory = getAddress(factoryAddress);
   for (const log of (receipt && receipt.logs) || []) {
@@ -248,7 +216,7 @@ async function readContractsMulticall({ calls, rpcUrl, provider }) {
   });
 }
 
-async function getLiquidSplitTokenBalance(options) {
+export async function getLiquidSplitTokenBalance(options) {
   const liquidSplitAddress = getAddress(options && options.liquidSplitAddress);
   const account = getAddress(options && options.account);
   const tokenId = BigInt(options && options.tokenId != null ? options.tokenId : 0);
@@ -281,7 +249,7 @@ async function getTransactionBlockNumber(txHash, rpcUrl, provider) {
   return receipt && receipt.blockNumber ? receipt.blockNumber : null;
 }
 
-async function getOfferingPurchaseFromTx(options) {
+export async function getOfferingPurchaseFromTx(options) {
   const txHash = options && options.txHash;
   if (!txHash) throw new Error('Purchase transaction hash is required.');
   const receipt = await rpcCall('eth_getTransactionReceipt', [txHash], options && options.rpcUrl, options && options.provider);
@@ -317,7 +285,7 @@ async function getOfferingPurchaseFromReceipt(options) {
   throw new Error('Purchase event was not found in the transaction receipt.');
 }
 
-async function getLiquidSplitHolders(options) {
+export async function getLiquidSplitHolders(options) {
   const liquidSplitAddress = getAddress(options && options.liquidSplitAddress);
   const tokenId = BigInt(options && options.tokenId != null ? options.tokenId : 0);
   const fromBlock = (options && options.fromBlock)
@@ -357,46 +325,7 @@ async function getLiquidSplitHolders(options) {
   return holders;
 }
 
-async function deployLiquidSplit(options) {
-  const provider = options && options.provider;
-  const issuance = options && options.issuance;
-  const owner = options && options.owner;
-  if (!provider) throw new Error('Wallet provider is required.');
-  if (!owner) throw new Error('Connected wallet is required.');
-
-  await ensureBase(provider);
-  const normalizedOwner = getAddress(owner);
-  const { accounts, initAllocations } = buildLiquidSplitAllocations(issuance, { getAddress });
-  const data = encodeFunctionData({
-    abi: LIQUID_SPLIT_FACTORY_ABI,
-    functionName: 'createLiquidSplitClone',
-    args: [accounts, initAllocations, ZERO_DISTRIBUTOR_FEE, normalizedOwner],
-  });
-
-  const txHash = await provider.request({
-    method: 'eth_sendTransaction',
-    params: [{
-      from: normalizedOwner,
-      to: LIQUID_SPLIT_FACTORY_ADDRESS,
-      data,
-      chainId: BASE_CHAIN_ID_HEX,
-    }],
-  });
-  const receipt = await waitForReceipt(provider, txHash, options);
-  if (receipt.status && normalizeChainId(receipt.status) === 0) {
-    throw new Error('Liquid Split transaction reverted.');
-  }
-  return {
-    chainId: BASE_CHAIN_ID,
-    factoryAddress: LIQUID_SPLIT_FACTORY_ADDRESS,
-    transactionHash: txHash,
-    liquidSplitAddress: decodeLiquidSplitAddress(receipt),
-    accounts,
-    initAllocations,
-  };
-}
-
-async function createOffering(options) {
+export async function createOffering(options) {
   const provider = options && options.provider;
   const issuance = options && options.issuance;
   const owner = options && options.owner;
@@ -456,7 +385,7 @@ async function createOffering(options) {
   };
 }
 
-async function getOfferingState(options) {
+export async function getOfferingState(options) {
   const offeringAddress = getAddress(options && options.offeringAddress);
   const buyer = options && options.buyer ? getAddress(options.buyer) : null;
   const calls = [
@@ -521,23 +450,23 @@ async function sendOfferingFunction(options) {
   return { txHash, receipt };
 }
 
-function withdrawOffering(options) {
+export function withdrawOffering(options) {
   return sendOfferingFunction({ ...(options || {}), functionName: 'withdraw' });
 }
 
-function closeAndWithdrawOffering(options) {
+export function closeAndWithdrawOffering(options) {
   return sendOfferingFunction({ ...(options || {}), functionName: 'closeAndWithdraw' });
 }
 
-function markOfferingFailed(options) {
+export function markOfferingFailed(options) {
   return sendOfferingFunction({ ...(options || {}), functionName: 'markFailed' });
 }
 
-function refundOffering(options) {
+export function refundOffering(options) {
   return sendOfferingFunction({ ...(options || {}), functionName: 'refund' });
 }
 
-function refundAllOffering(options) {
+export function refundAllOffering(options) {
   const buyers = ((options && options.buyers) || []).map(getAddress);
   return sendOfferingFunction({ ...(options || {}), functionName: 'refundAll', args: [buyers] });
 }
@@ -571,7 +500,7 @@ function localCostFor(curve, sold, units) {
   return units * curve.priceStart + curve.priceSlope * (sold * units + (units * (units - 1)) / 2);
 }
 
-async function quoteOfferingPurchase(options) {
+export async function quoteOfferingPurchase(options) {
   const issuance = options && options.issuance;
   const amountUsd = Number(options && options.amountUsd);
   if (!issuance || !issuance.offeringAddress) throw new Error('Offering contract is not available.');
@@ -594,7 +523,7 @@ async function quoteOfferingPurchase(options) {
   return { ...state, units, cost, maxCost };
 }
 
-async function buyOffering(options) {
+export async function buyOffering(options) {
   const provider = options && options.provider;
   const issuance = options && options.issuance;
   const buyer = options && options.buyer;
@@ -667,29 +596,3 @@ async function buyOffering(options) {
   };
 }
 
-window.PactLiquidSplit = {
-  BASE_CHAIN_ID,
-  BASE_CHAIN_ID_HEX,
-  LIQUID_SPLIT_FACTORY_ADDRESS,
-  BASE_USDC_ADDRESS,
-  OFFERING_FACTORY_ADDRESS,
-  OFFERING_FACTORY_ABI,
-  OFFERING_ABI,
-  TEMP_BONDING_CURVE_ADDRESS,
-  buildLiquidSplitAllocations: issuance => buildLiquidSplitAllocations(issuance, { getAddress }),
-  buildOfferingFactoryInputs: issuance => buildOfferingFactoryInputs(issuance, { getAddress }),
-  deriveOfferingCurve,
-  deployLiquidSplit,
-  createOffering,
-  getOfferingState,
-  withdrawOffering,
-  closeAndWithdrawOffering,
-  markOfferingFailed,
-  refundOffering,
-  refundAllOffering,
-  quoteOfferingPurchase,
-  buyOffering,
-  getOfferingPurchaseFromTx,
-  getLiquidSplitTokenBalance,
-  getLiquidSplitHolders,
-};

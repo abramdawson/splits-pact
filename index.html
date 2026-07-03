@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:opsz,wght@6..72,200..800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="/src/app.css">
 <style>
   .overview-section + .overview-section { margin-top: 26px; }
   .overview-section h2 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
@@ -41,74 +41,9 @@
   </div>
 
   <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
-    <main class="paper w-full max-w-2xl px-10 py-12 sm:px-14 sm:py-16 text-[14px] leading-[1.65]">
-      <div class="mb-9">
-        <h1 class="text-xl font-bold">PACT</h1>
-        <p class="mt-1 text-[13px] t-muted">Purchase Agreement for Community Tokens</p>
-        <p class="mt-5">
-          Run lightweight, early-stage financing rounds without needing to incorporate.
-        </p>
-      </div>
-
-      <div class="mb-10">
-        <section class="overview-section">
-          <h2>Why</h2>
-          <p>
-            Incorporating, opening a bank account, and fundraising all depend on each other and require time, paperwork, and commitments that can be costly to unwind. Raising capital, however, does not need to be gated by legal structure. At the earliest stages, it runs more on relationships and reputation than on the legal system.
-          </p>
-        </section>
-        <section class="overview-section">
-          <h2>What</h2>
-          <p>
-            It works like a small, lightweight SAFE-style instrument, but lives onchain with public receipts and composable units upon which future equity, tokens, and revenue can be distributed.
-          </p>
-        </section>
-        <section class="overview-section">
-          <h2>Compared with a SAFE</h2>
-          <p>
-            A SAFE is familiar, legally defined, and built for future equity in an incorporated company. A PACT is lighter: it can happen before incorporation, creates public receipts, and gives supporters composable units that can map to whatever the project becomes.
-          </p>
-          <p class="mt-3">
-            The tradeoff is that a PACT leans more on relationships and reputation up front. The final legal, equity, token, or revenue structure still has to be defined later.
-          </p>
-        </section>
-        <section class="overview-section">
-          <h2>How</h2>
-          <ol class="list-decimal">
-            <li>A private issuance is created with a cap table, target amount, post-money valuation, and close date. Upon issuance, cap table holders receive their tokens and the remaining tokens are placed in a bonding curve for buyers to purchase.</li>
-            <li>Buyer-specific allocation links are created by the issuer and sent to each buyer. As buyers purchase their allocations, they receive a pro-rata share of tokens in return.</li>
-            <li>If the round does not reach its minimum by the close date, buyers are refunded. If the minimum is met, the treasury can withdraw funds and close the round.</li>
-          </ol>
-        </section>
-      </div>
-
-      <div class="flex justify-end">
-        <a class="cta inline-flex items-center justify-center px-6 py-3 text-[14px] font-semibold" href="create.html">Create PACT</a>
-      </div>
-    </main>
+    <main id="app" class="paper w-full max-w-2xl px-10 py-12 sm:px-14 sm:py-16 text-[14px] leading-[1.65]"></main>
   </div>
 
-<script src="api.js"></script>
-<script src="wallet.js"></script>
-<script src="settings.js"></script>
-<script>
-PactSettings.init({ buttonId: 'settingsToggle' });
-PactWallet.init({ buttonId: 'walletToggle' });
-</script>
-<script>
-  if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    const watch = [location.href, 'app.css', 'api.js', 'wallet.js', 'settings.js'];
-    let stamp = null;
-    setInterval(async () => {
-      try {
-        const tags = await Promise.all(watch.map(u => fetch(u, { method: 'HEAD', cache: 'no-store' })
-          .then(r => r.headers.get('last-modified') || r.headers.get('etag') || '')));
-        const t = tags.join('|');
-        if (stamp && t !== stamp) location.reload();
-        stamp = t;
-      } catch (e) {}
-    }, 1000);
-  }
-</script>
+<script type="module" src="/src/pages/home.jsx"></script>
 </body>
 </html>

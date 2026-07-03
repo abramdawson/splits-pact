@@ -3,7 +3,7 @@
 //   fMin  — threshold fraction (where the minimum raise is reached) → marker
 //   fillF — current fill fraction (how far the round has sold) → "Now" marker + shading
 //   hoverF — readout fraction → post-money valuation and price-per-token pill
-function drawCurve(canvas, cfg) {
+export function drawCurve(canvas, cfg) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height, pad = 78;
   const { vMin, vMax, cap, F, totalTokens, fMin, fillF } = cfg;
@@ -143,7 +143,7 @@ function drawCurve(canvas, cfg) {
 }
 
 // Wire hover on a canvas. getCfg() returns the current base cfg (without hoverF).
-function attachCurveHover(canvas, getCfg) {
+export function attachCurveHover(canvas, getCfg) {
   canvas.addEventListener('mousemove', e => {
     const cfg = getCfg();
     if (!cfg || !cfg.cap || cfg.F <= 0) return;

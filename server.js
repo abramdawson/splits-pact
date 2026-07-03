@@ -1,7 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const express = require('express');
-const Database = require('better-sqlite3');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import express from 'express';
+import Database from 'better-sqlite3';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_PORT = 7228;
 const DEFAULT_CHAIN_ID = 8453;
@@ -186,14 +189,6 @@ function validateRaise(input) {
   return errors;
 }
 
-function isClosed(raise) {
-  const funded = (raise.allocations || [])
-    .filter(a => a.status === 'funded')
-    .reduce((sum, a) => sum + parseAmount(a.amountUsd), 0);
-  const closeDate = raise.createdAt + parseAmount(raise.minimum && raise.minimum.deadlineDays) * 86400000;
-  return funded >= parseAmount(raise.raise && raise.raise.max) || Date.now() > closeDate;
-}
-
 function createRaise(db, input) {
   const errors = validateRaise(input);
   if (errors.length) return { status: 400, body: { error: errors[0], errors } };
@@ -281,7 +276,6 @@ function listPurchases(db, input = {}) {
 function addAllocation(db, raiseId, input) {
   const raise = readRaise(db, raiseId);
   if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
-  if (isClosed(raise)) return { status: 409, body: { error: 'Offering is closed.' } };
 
   const name = String(input && input.name || '').trim();
   const amountUsd = parseAmount(input && input.amountUsd);
@@ -304,40 +298,35 @@ function addAllocation(db, raiseId, input) {
 function deleteAllocation(db, raiseId, allocationId) {
   const raise = readRaise(db, raiseId);
   if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
-  const before = (raise.allocations || []).length;
-  raise.allocations = (raise.allocations || []).filter(a => a.id !== allocationId);
-  if (raise.allocations.length === before) return { status: 404, body: { error: 'Allocation not found.' } };
+  const allocation = (raise.allocations || []).find(a => a.id === allocationId);
+  if (!allocation) return { status: 404, body: { error: 'Allocation not found.' } };
+  // A funded allocation records a settled onchain purchase, so it is immutable.
+  if (allocation.status === 'funded') return { status: 409, body: { error: 'Funded allocations cannot be deleted.' } };
+  raise.allocations = raise.allocations.filter(a => a.id !== allocationId);
   writeRaise(db, raise);
   return { status: 200, body: { raise } };
 }
 
-function setAllocationFunded(db, raiseId, allocationId, funded, input = {}) {
+// Records a settled onchain purchase against an allocation. Funding is terminal:
+// the contract is the source of truth for the purchase, and funded allocations
+// are never reverted or deleted.
+function fundAllocation(db, raiseId, allocationId, input = {}) {
   const raise = readRaise(db, raiseId);
   if (!raise) return { status: 404, body: { error: 'Raise not found.' } };
-  if (funded && isClosed(raise)) return { status: 409, body: { error: 'Offering is closed.' } };
-  if (funded && !isAddress(input.buyerWallet)) return { status: 400, body: { error: 'Buyer wallet is required.' } };
+  if (!isAddress(input.buyerWallet)) return { status: 400, body: { error: 'Buyer wallet is required.' } };
   const allocation = (raise.allocations || []).find(a => a.id === allocationId);
   if (!allocation) return { status: 404, body: { error: 'Allocation not found.' } };
-  if (funded) {
-    allocation.status = 'funded';
-    allocation.fundedAt = Date.now();
-    allocation.buyerWallet = input.buyerWallet;
-    if (isTxHash(input.txHash)) allocation.txHash = input.txHash;
-    else delete allocation.txHash;
-    const tokensPurchased = parsePositiveInteger(input.tokensPurchased);
-    const purchaseCostUsdcBaseUnits = parsePositiveInteger(input.purchaseCostUsdcBaseUnits);
-    if (tokensPurchased) allocation.tokensPurchased = tokensPurchased;
-    else delete allocation.tokensPurchased;
-    if (purchaseCostUsdcBaseUnits) allocation.purchaseCostUsdcBaseUnits = purchaseCostUsdcBaseUnits;
-    else delete allocation.purchaseCostUsdcBaseUnits;
-  } else {
-    allocation.status = 'allocated';
-    delete allocation.fundedAt;
-    delete allocation.buyerWallet;
-    delete allocation.txHash;
-    delete allocation.tokensPurchased;
-    delete allocation.purchaseCostUsdcBaseUnits;
-  }
+  allocation.status = 'funded';
+  allocation.fundedAt = Date.now();
+  allocation.buyerWallet = input.buyerWallet;
+  if (isTxHash(input.txHash)) allocation.txHash = input.txHash;
+  else delete allocation.txHash;
+  const tokensPurchased = parsePositiveInteger(input.tokensPurchased);
+  const purchaseCostUsdcBaseUnits = parsePositiveInteger(input.purchaseCostUsdcBaseUnits);
+  if (tokensPurchased) allocation.tokensPurchased = tokensPurchased;
+  else delete allocation.tokensPurchased;
+  if (purchaseCostUsdcBaseUnits) allocation.purchaseCostUsdcBaseUnits = purchaseCostUsdcBaseUnits;
+  else delete allocation.purchaseCostUsdcBaseUnits;
   writeRaise(db, raise);
   return { status: 200, body: { raise, allocation } };
 }
@@ -405,7 +394,9 @@ function sendResult(res, result) {
 
 function createApp(options = {}) {
   const app = express();
-  const staticDir = options.staticDir || __dirname;
+  // Production serves the Vite build output; the Vite dev server passes
+  // staticDir: null and handles page/asset requests itself.
+  const staticDir = 'staticDir' in options ? options.staticDir : path.join(__dirname, 'dist');
   const dbPath = options.dbPath || process.env.PACT_DB_PATH || path.join(__dirname, 'data', 'pact.sqlite');
   const db = options.db || openDb(dbPath);
 
@@ -456,24 +447,22 @@ function createApp(options = {}) {
   });
 
   app.post('/api/raises/:id/allocations/:allocationId/fund', (req, res) => {
-    sendResult(res, setAllocationFunded(db, req.params.id, req.params.allocationId, true, req.body));
+    sendResult(res, fundAllocation(db, req.params.id, req.params.allocationId, req.body));
   });
 
-  app.post('/api/raises/:id/allocations/:allocationId/unfund', (req, res) => {
-    sendResult(res, setAllocationFunded(db, req.params.id, req.params.allocationId, false));
-  });
-
-  app.use(express.static(staticDir, {
-    extensions: ['html'],
-    setHeaders(res, filePath) {
-      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
-    },
-  }));
+  if (staticDir) {
+    app.use(express.static(staticDir, {
+      extensions: ['html'],
+      setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+      },
+    }));
+  }
 
   return app;
 }
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT || DEFAULT_PORT);
   const host = process.env.HOST || '0.0.0.0';
   const app = createApp();
@@ -484,7 +473,7 @@ if (require.main === module) {
   setInterval(() => {}, 60000);
 }
 
-module.exports = {
+export {
   createApp,
   openDb,
   readRaise,
@@ -494,7 +483,7 @@ module.exports = {
   listPurchases,
   addAllocation,
   deleteAllocation,
-  setAllocationFunded,
+  fundAllocation,
   syncOfferingState,
   syncCapTableState,
   fetchLiquidSplitHoldersFromExplorer,

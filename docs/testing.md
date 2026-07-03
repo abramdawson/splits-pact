@@ -17,7 +17,7 @@ thresholds, withdrawals, close, refunds, and factory-created Liquid Split setup.
 npm test
 ```
 
-This rebuilds the onchain browser bundle, then runs Node tests in `tests/*.test.js`.
+This runs Node tests in `tests/*.test.js`.
 
 Covered areas include:
 
@@ -32,8 +32,9 @@ Covered areas include:
 npm run test:e2e
 ```
 
-This rebuilds the onchain bundle and runs Playwright. The test uses a mocked
-EIP-1193 wallet. It does not submit real Base transactions.
+This builds the app with Vite, then runs Playwright against the production
+build served by `server.js`. The test uses a mocked EIP-1193 wallet. It does
+not submit real Base transactions.
 
 The browser flow creates an issuance, generates an allocation link, opens that
 buyer link in a separate browser context, purchases, and verifies the status page

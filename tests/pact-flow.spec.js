@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 const addr = n => '0x' + String(n).padStart(40, '0');
 const baseUsdc = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
@@ -205,8 +205,25 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   const page = await issuer.newPage();
 
   await page.goto('/create.html');
-  await expect(page.locator('#createBtn')).toHaveText('Create issuance');
+  await expect(page.locator('#createBtn')).toHaveText('Sign and create issuance');
   await expect(page.locator('#createBtn')).toBeDisabled();
+
+  // leaving a required field empty flags it, and min > max flags both raise fields
+  await page.locator('#proceeds').focus();
+  await page.locator('#proceeds').blur();
+  await expect(page.locator('#proceeds')).toHaveClass(/error/);
+  await page.locator('#raiseMin').fill('20,000');
+  await page.locator('#raiseMin').blur();
+  await expect(page.locator('#raiseMin')).toHaveClass(/error/);
+  await expect(page.locator('#raiseMax')).toHaveClass(/error/);
+  await page.locator('#raiseMax').hover();
+  await expect(page.locator('.err-tip')).toHaveClass(/show/);
+  await page.locator('#raiseMin').fill('5,000');
+  await page.locator('#raiseMin').blur();
+  await expect(page.locator('#raiseMin')).not.toHaveClass(/error/);
+  await expect(page.locator('#raiseMax')).not.toHaveClass(/error/);
+  await expect(page.locator('.err-tip')).not.toHaveClass(/show/);
+
   await page.locator('#projectName').fill('Cross Context PACT');
   await page.locator('#proceeds').fill(addr(1));
   await page.locator('input[data-k="name"]').nth(0).fill(addr(2));
@@ -215,7 +232,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(page.locator('#createTip')).toContainText('Connect wallet to create issuance');
   await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
-  await expect(page.locator('#createBtn')).toHaveText('Create issuance');
+  await expect(page.locator('#createBtn')).toHaveText('Sign and create issuance');
   await expect(page.locator('#createBtn')).toBeEnabled();
   await page.locator('#createBtn').click();
   await expect(page).toHaveURL(/status\.html\?id=r/);
