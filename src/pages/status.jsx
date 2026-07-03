@@ -131,7 +131,7 @@ function offeringStatus(onchainOffering, open, secured) {
 }
 
 function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canManage, debugState) {
-  if ((!r.offeringAddress && !debugActive(debugState)) || !onchainOffering || !connectedWallet) return [];
+  if (!onchainOffering || !connectedWallet) return [];
   if (onchainOffering.state === 2) return [];
   const ownerAddress = onchainOffering.owner || null;
   const isOwner = ownerAddress ? isSameAddress(connectedWallet, ownerAddress) : false;
@@ -179,7 +179,7 @@ function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canM
 function disabledContractReadActions(actions, tooltip, r) {
   const disabled = actions.length ? actions : [
     { action: 'withdraw', label: 'Withdraw proceeds', cta: 'Withdraw', note: 'Transfer raised funds to your treasury' },
-    { action: 'top-up', label: 'Increase offering', cta: shortAddr(r && r.offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' },
+    { action: 'top-up', label: 'Increase offering', cta: shortAddr(r.offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' },
     { action: 'close', label: 'Close round', cta: 'Close round', note: 'Withdraw funds and return unsold tokens to treasury', warning: true },
   ];
   return disabled.map(action => ({ ...action, disabled: true, tooltip }));
@@ -674,9 +674,9 @@ function StatusApp() {
       : null;
   })();
   const onchainOffering = debugOfferingSnapshot(r, snapshot, debugState);
-  const offeringReadFailed = r.offeringAddress && !debugActive(debugState) && offering && offering.status === 'error';
+  const offeringReadFailed = !debugActive(debugState) && offering && offering.status === 'error';
   const debugReadFailed = debugState === 'error';
-  const offeringLoading = r.offeringAddress && (
+  const offeringLoading = (
     debugState === 'loading' ||
     !offering ||
     offering.status === 'loading'
@@ -693,7 +693,7 @@ function StatusApp() {
   const statusInfo = (() => {
     if (debugState === 'loading') return { label: 'Loading...', tone: 'loading', note: '' };
     if (debugState === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Reconnect your wallet and refresh' };
-    if (!r.offeringAddress || onchainOffering) return localStatus;
+    if (onchainOffering) return localStatus;
     if (offering && offering.status === 'loading') return { label: 'Loading...', tone: 'loading', note: '' };
     if (offering && offering.status === 'wallet-required') return { label: 'Connect wallet', tone: 'funding', note: 'Contract read required' };
     if (offering && offering.status === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Reconnect your wallet and refresh' };

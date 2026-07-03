@@ -233,23 +233,18 @@ function BuyApp() {
     if (!alloc) return;
     setBusy('pay');
     try {
-      let txHash = null;
-      let purchaseRecord = null;
-      if (current.offeringAddress) {
-        const purchase = await buyOffering({
-          provider: PactWallet.provider,
-          issuance: current,
-          buyer: walletRef.current,
-          amountUsd: alloc.amountUsd,
-        });
-        txHash = purchase.buyTxHash;
-        purchaseRecord = {
-          txHash,
-          tokensPurchased: purchase.units,
-          purchaseCostUsdcBaseUnits: purchase.cost,
-        };
-      }
-      const result = await PactAPI.fundAllocation(current.id, alloc.id, walletRef.current, purchaseRecord || txHash);
+      const purchase = await buyOffering({
+        provider: PactWallet.provider,
+        issuance: current,
+        buyer: walletRef.current,
+        amountUsd: alloc.amountUsd,
+      });
+      const purchaseRecord = {
+        txHash: purchase.buyTxHash,
+        tokensPurchased: purchase.units,
+        purchaseCostUsdcBaseUnits: purchase.cost,
+      };
+      const result = await PactAPI.fundAllocation(current.id, alloc.id, walletRef.current, purchaseRecord);
       setRaise(result.raise);
       setReceipt(null);
       setOffering(null);
@@ -291,7 +286,7 @@ function BuyApp() {
   const purchasedTokens = hasPurchaseData ? dbTokens : (hasOnchainReceipt ? receiptState.tokens : localTokens);
   const purchaseCost = hasPurchaseData ? usdcBaseUnitsToDollars(dbCostBaseUnits) : (hasOnchainReceipt ? usdcBaseUnitsToDollars(receiptState.cost) : a.amountUsd);
   const allocationQuote = !isPaid && offeringState && curve ? quoteAllocationFromState(curve, offeringState, a.amountUsd) : null;
-  const allocationQuoteLoading = !isPaid && r.offeringAddress && !offeringState;
+  const allocationQuoteLoading = !isPaid && !offeringState;
   const allocationTokens = isPaid ? (localTokens || purchasedTokens) : (allocationQuote ? allocationQuote.units : tokensBetween(r, funded, funded + a.amountUsd));
   const allocationCost = allocationQuote ? usdcBaseUnitsToDollars(allocationQuote.cost) : a.amountUsd;
   const allocationPricePer = allocationTokens > 0 ? allocationCost / allocationTokens : 0;
@@ -341,9 +336,7 @@ function BuyApp() {
         <p className="text-[13px] t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(r.raise.min)} by {fmtDate(closeDate)}.</p>
         <div className="flex justify-end">
           <Button className="px-6 py-3 text-[14px] font-semibold" data-act="pay" disabled={busy === 'pay'} onClick={handlePay}>
-            {busy === 'pay'
-              ? (r.offeringAddress ? 'Purchasing...' : 'Marking purchased...')
-              : `${r.offeringAddress ? 'Purchase' : 'Mark purchased'} ${r.projectName}`}
+            {busy === 'pay' ? 'Purchasing...' : `Purchase ${r.projectName}`}
           </Button>
         </div>
       </>

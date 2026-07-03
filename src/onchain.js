@@ -5,8 +5,6 @@ import {
   BASE_USDC_ADDRESS,
   LIQUID_SPLIT_FACTORY_ADDRESS,
   TEMP_BONDING_CURVE_ADDRESS,
-  ZERO_DISTRIBUTOR_FEE,
-  buildLiquidSplitAllocations,
   buildOfferingFactoryInputs,
   deriveOfferingCurve,
   toUsdcBaseUnits,
@@ -57,28 +55,6 @@ const MULTICALL3_ABI = [
       },
     ],
     stateMutability: 'payable',
-    type: 'function',
-  },
-];
-const LIQUID_SPLIT_FACTORY_ABI = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: 'contract LS1155CloneImpl', name: 'ls', type: 'address' },
-    ],
-    name: 'CreateLS1155Clone',
-    type: 'event',
-  },
-  {
-    inputs: [
-      { internalType: 'address[]', name: 'accounts', type: 'address[]' },
-      { internalType: 'uint32[]', name: 'initAllocations', type: 'uint32[]' },
-      { internalType: 'uint32', name: '_distributorFee', type: 'uint32' },
-      { internalType: 'address', name: 'owner', type: 'address' },
-    ],
-    name: 'createLiquidSplitClone',
-    outputs: [{ internalType: 'contract LS1155CloneImpl', name: 'ls', type: 'address' }],
-    stateMutability: 'nonpayable',
     type: 'function',
   },
 ];
@@ -176,26 +152,6 @@ async function waitForReceipt(provider, txHash, options = {}) {
   }
 
   throw new Error('Timed out waiting for Liquid Split transaction receipt.');
-}
-
-function decodeLiquidSplitAddress(receipt) {
-  const logs = receipt && receipt.logs ? receipt.logs : [];
-  for (const log of logs) {
-    if (String(log.address || '').toLowerCase() !== LIQUID_SPLIT_FACTORY_ADDRESS.toLowerCase()) continue;
-    try {
-      // The factory return value is not available from eth_sendTransaction; the
-      // explorer and SDK use this event as the durable source of the clone address.
-      const event = decodeEventLog({
-        abi: LIQUID_SPLIT_FACTORY_ABI,
-        data: log.data,
-        topics: log.topics,
-      });
-      if (event.eventName === 'CreateLS1155Clone' && event.args && event.args.ls) {
-        return getAddress(event.args.ls);
-      }
-    } catch (err) {}
-  }
-  throw new Error('Liquid Split creation event was not found in the transaction receipt.');
 }
 
 function decodeOfferingCreated(receipt, factoryAddress) {
@@ -367,45 +323,6 @@ export async function getLiquidSplitHolders(options) {
     if (balance > 0n) holders.push({ address, balance: Number(balance) });
   }
   return holders;
-}
-
-export async function deployLiquidSplit(options) {
-  const provider = options && options.provider;
-  const issuance = options && options.issuance;
-  const owner = options && options.owner;
-  if (!provider) throw new Error('Wallet provider is required.');
-  if (!owner) throw new Error('Connected wallet is required.');
-
-  await ensureBase(provider);
-  const normalizedOwner = getAddress(owner);
-  const { accounts, initAllocations } = buildLiquidSplitAllocations(issuance, { getAddress });
-  const data = encodeFunctionData({
-    abi: LIQUID_SPLIT_FACTORY_ABI,
-    functionName: 'createLiquidSplitClone',
-    args: [accounts, initAllocations, ZERO_DISTRIBUTOR_FEE, normalizedOwner],
-  });
-
-  const txHash = await provider.request({
-    method: 'eth_sendTransaction',
-    params: [{
-      from: normalizedOwner,
-      to: LIQUID_SPLIT_FACTORY_ADDRESS,
-      data,
-      chainId: BASE_CHAIN_ID_HEX,
-    }],
-  });
-  const receipt = await waitForReceipt(provider, txHash, options);
-  if (receipt.status && normalizeChainId(receipt.status) === 0) {
-    throw new Error('Liquid Split transaction reverted.');
-  }
-  return {
-    chainId: BASE_CHAIN_ID,
-    factoryAddress: LIQUID_SPLIT_FACTORY_ADDRESS,
-    transactionHash: txHash,
-    liquidSplitAddress: decodeLiquidSplitAddress(receipt),
-    accounts,
-    initAllocations,
-  };
 }
 
 export async function createOffering(options) {
