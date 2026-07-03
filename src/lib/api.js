@@ -54,15 +54,9 @@ export const PactAPI = {
     });
   },
   fundAllocation(raiseId, allocationId, buyerWallet, purchase = {}) {
-    const payload = typeof purchase === 'string' ? { txHash: purchase } : (purchase || {});
     return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations/' + encodeURIComponent(allocationId) + '/fund', {
       method: 'POST',
-      body: JSON.stringify({ buyerWallet, ...payload }),
-    });
-  },
-  unfundAllocation(raiseId, allocationId) {
-    return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations/' + encodeURIComponent(allocationId) + '/unfund', {
-      method: 'POST',
+      body: JSON.stringify({ buyerWallet, ...purchase }),
     });
   },
 };

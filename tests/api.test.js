@@ -9,7 +9,7 @@ import {
   getRaise,
   addAllocation,
   deleteAllocation,
-  setAllocationFunded,
+  fundAllocation,
   syncOfferingState,
   syncCapTableState,
   listRaises,
@@ -63,7 +63,7 @@ test('creates and reads a raise', () => {
   });
 });
 
-test('adds, funds, unfunds, and deletes an allocation', () => {
+test('funds an allocation and records the purchase', () => {
   withDb(db => {
     const created = createRaise(db, fixtureRaise());
     const raiseId = created.body.id;
@@ -74,7 +74,7 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
 
     const allocationId = added.body.allocation.id;
     const txHash = '0x' + '8'.repeat(64);
-    const funded = setAllocationFunded(db, raiseId, allocationId, true, { buyerWallet: '0x0000000000000000000000000000000000000008', txHash });
+    const funded = fundAllocation(db, raiseId, allocationId, { buyerWallet: '0x0000000000000000000000000000000000000008', txHash });
     assert.equal(funded.status, 200);
     assert.equal(funded.body.allocation.status, 'funded');
     assert.equal(funded.body.allocation.buyerWallet, '0x0000000000000000000000000000000000000008');
@@ -87,15 +87,24 @@ test('adds, funds, unfunds, and deletes an allocation', () => {
     assert.equal(purchases.body.purchases[0].raiseId, raiseId);
     assert.equal(purchases.body.purchases[0].allocationId, allocationId);
     assert.equal(purchases.body.purchases[0].txHash, txHash);
+  });
+});
 
-    const unfunded = setAllocationFunded(db, raiseId, allocationId, false);
-    assert.equal(unfunded.body.allocation.status, 'allocated');
-    assert.equal('fundedAt' in unfunded.body.allocation, false);
-    assert.equal('txHash' in unfunded.body.allocation, false);
+test('funded allocations are immutable; unfunded ones can be deleted', () => {
+  withDb(db => {
+    const created = createRaise(db, fixtureRaise());
+    const raiseId = created.body.id;
 
-    const deleted = deleteAllocation(db, raiseId, allocationId);
+    const funded = addAllocation(db, raiseId, { name: 'Buyer One', amountUsd: 1500 });
+    fundAllocation(db, raiseId, funded.body.allocation.id, { buyerWallet: '0x0000000000000000000000000000000000000008' });
+    const blocked = deleteAllocation(db, raiseId, funded.body.allocation.id);
+    assert.equal(blocked.status, 409);
+
+    const pending = addAllocation(db, raiseId, { name: 'Buyer Two', amountUsd: 500 });
+    const deleted = deleteAllocation(db, raiseId, pending.body.allocation.id);
     assert.equal(deleted.status, 200);
-    assert.equal(deleted.body.raise.allocations.length, 0);
+    assert.equal(deleted.body.raise.allocations.some(a => a.id === pending.body.allocation.id), false);
+    assert.equal(deleted.body.raise.allocations.some(a => a.id === funded.body.allocation.id), true);
   });
 });
 
