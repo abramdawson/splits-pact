@@ -128,9 +128,18 @@ function renderPurchaseMenu() {
 
 function renderMenu() {
   if (!menu) return;
-  menu.innerHTML = account
-    ? '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu() + renderPurchaseMenu()
-    : providers.map(item => `<button type="button" data-wallet-id="${item.id}">${providerName(item)}</button>`).join('');
+  if (account) {
+    menu.innerHTML = '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu() + renderPurchaseMenu();
+    return;
+  }
+  menu.innerHTML = '';
+  for (const item of providers) {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.setAttribute('data-wallet-id', item.id);
+    option.textContent = providerName(item);
+    menu.appendChild(option);
+  }
 }
 
 async function loadWalletRecords() {

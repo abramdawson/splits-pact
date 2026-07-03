@@ -25,6 +25,13 @@ More detail:
 
 ## Local Development
 
+Use Node 22.15.1 or newer. With `asdf`:
+
+```sh
+asdf install
+asdf local nodejs 22.15.1
+```
+
 Install dependencies:
 
 ```sh
