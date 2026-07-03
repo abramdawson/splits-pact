@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { PactAPI } from '../lib/api.js';
 import { PactWallet } from '../lib/wallet.js';
 import { PactSettings } from '../lib/settings.js';
@@ -172,7 +173,10 @@ function CurveChart({ curveState, forceLight, themeTick }) {
     attachCurveHover(canvasRef.current, () => cfgRef.current);
   }, []);
 
-  useEffect(() => {
+  // Layout effect (not passive) so the redraw commits before the browser
+  // paints or captures a print snapshot — the print handler pairs this with
+  // flushSync so switching to the light palette lands before Cmd+P prints.
+  useLayoutEffect(() => {
     if (cfgRef.current) drawCurve(canvasRef.current, cfgRef.current);
   }, [curveState, forceLight, themeTick]);
 
@@ -242,9 +246,11 @@ function CreateApp() {
     document.addEventListener('mouseout', onOut);
     document.addEventListener('input', onInput);
 
-    // print the chart in the light palette regardless of on-screen theme
-    const before = () => setForceLightChart(true);
-    const after = () => setForceLightChart(false);
+    // print the chart in the light palette regardless of on-screen theme.
+    // flushSync forces the re-render + layout-effect redraw to commit
+    // synchronously, before the browser captures the print snapshot.
+    const before = () => flushSync(() => setForceLightChart(true));
+    const after = () => flushSync(() => setForceLightChart(false));
     window.addEventListener('beforeprint', before);
     window.addEventListener('afterprint', after);
     return () => {
