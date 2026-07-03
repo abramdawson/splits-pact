@@ -18,8 +18,8 @@ Official Base Liquid Split factory:
 0xdEcd8B99b7F763e16141450DAa5EA414B7994831
 ```
 
-The factory address is embedded in `src/generated/offering-contracts.js` and
-therefore in `dist/onchain.bundle.js`.
+The factory address is embedded in `src/generated/offering-contracts.js`, which
+the browser code imports directly.
 
 ## Creation Flow
 
@@ -99,9 +99,7 @@ After Solidity changes:
 
 ```sh
 npm run build:contracts
-npm run build:onchain
 ```
 
-`build:contracts` runs Foundry and exports ABI/bytecode into
-`src/generated/offering-contracts.js`. `build:onchain` rebundles
-`dist/onchain.bundle.js`.
+This runs Foundry and exports ABI/bytecode into
+`src/generated/offering-contracts.js`, which `src/onchain.js` imports.

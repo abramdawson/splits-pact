@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 node_modules/
+dist/
 data/
 .tmp/
 playwright-report/

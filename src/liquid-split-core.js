@@ -1,6 +1,6 @@
-const BASE_CHAIN_ID = 8453;
-const BASE_CHAIN_ID_HEX = '0x2105';
-const BASE_CHAIN_PARAMS = {
+export const BASE_CHAIN_ID = 8453;
+export const BASE_CHAIN_ID_HEX = '0x2105';
+export const BASE_CHAIN_PARAMS = {
   chainId: BASE_CHAIN_ID_HEX,
   chainName: 'Base',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
@@ -8,12 +8,12 @@ const BASE_CHAIN_PARAMS = {
   blockExplorerUrls: ['https://basescan.org'],
 };
 
-const LIQUID_SPLIT_FACTORY_ADDRESS = '0xdEcd8B99b7F763e16141450DAa5EA414B7994831';
-const BASE_USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-const TEMP_BONDING_CURVE_ADDRESS = '0xc6C8F6E4A73B2971C725359bb595Da1306FE5257';
-const TOTAL_LIQUID_SPLIT_UNITS = 1000;
-const ZERO_DISTRIBUTOR_FEE = 0;
-const USDC_SCALE = 1000000;
+export const LIQUID_SPLIT_FACTORY_ADDRESS = '0xdEcd8B99b7F763e16141450DAa5EA414B7994831';
+export const BASE_USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+export const TEMP_BONDING_CURVE_ADDRESS = '0xc6C8F6E4A73B2971C725359bb595Da1306FE5257';
+export const TOTAL_LIQUID_SPLIT_UNITS = 1000;
+export const ZERO_DISTRIBUTOR_FEE = 0;
+export const USDC_SCALE = 1000000;
 
 function isAddress(value) {
   return /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
@@ -25,7 +25,7 @@ function checksumOrLower(address, getAddress) {
   return getAddress ? getAddress(trimmed) : trimmed.toLowerCase();
 }
 
-function buildLiquidSplitAllocations(issuance, options = {}) {
+export function buildLiquidSplitAllocations(issuance, options = {}) {
   if (!issuance || typeof issuance !== 'object') throw new Error('Issuance is required.');
   const getAddress = options.getAddress;
   const bondingCurveAddress = options.bondingCurveAddress || TEMP_BONDING_CURVE_ADDRESS;
@@ -71,7 +71,7 @@ function buildLiquidSplitAllocations(issuance, options = {}) {
   };
 }
 
-function buildOfferingFactoryInputs(issuance, options = {}) {
+export function buildOfferingFactoryInputs(issuance, options = {}) {
   if (!issuance || typeof issuance !== 'object') throw new Error('Issuance is required.');
   const getAddress = options.getAddress;
   const allocations = buildLiquidSplitAllocations(issuance, {
@@ -100,13 +100,13 @@ function buildOfferingFactoryInputs(issuance, options = {}) {
   return { holderAccounts, holderAllocations, offeringUnits };
 }
 
-function toUsdcBaseUnits(dollars) {
+export function toUsdcBaseUnits(dollars) {
   const n = Number(dollars);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.floor(n * USDC_SCALE);
 }
 
-function deriveOfferingCurve(issuance) {
+export function deriveOfferingCurve(issuance) {
   const floor = Number(issuance && issuance.valuation && issuance.valuation.floor);
   const ceiling = Number(issuance && issuance.valuation && issuance.valuation.ceiling);
   const offeringUnits = Number(issuance && issuance.newMoney && issuance.newMoney.tokens);
@@ -118,19 +118,3 @@ function deriveOfferingCurve(issuance) {
   const priceSlope = ceiling > floor ? Math.max(1, slopeRaw) : 0;
   return { priceStart, priceSlope };
 }
-
-module.exports = {
-  BASE_CHAIN_ID,
-  BASE_CHAIN_ID_HEX,
-  BASE_CHAIN_PARAMS,
-  LIQUID_SPLIT_FACTORY_ADDRESS,
-  BASE_USDC_ADDRESS,
-  TEMP_BONDING_CURVE_ADDRESS,
-  TOTAL_LIQUID_SPLIT_UNITS,
-  ZERO_DISTRIBUTOR_FEE,
-  USDC_SCALE,
-  buildLiquidSplitAllocations,
-  buildOfferingFactoryInputs,
-  deriveOfferingCurve,
-  toUsdcBaseUnits,
-};

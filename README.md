@@ -12,7 +12,8 @@ The app currently targets Base mainnet and uses USDC for purchases.
 - `create.html` - issuer form for creating a PACT issuance and deploying the onchain offering.
 - `status.html` - issuer dashboard for allocations, offering state, lifecycle actions, and cap table.
 - `buy.html` - buyer-facing purchase and receipt page.
-- `server.js` - single Node process serving static files plus `/api`.
+- `src/pages/` + `src/lib/` - the ES modules behind each page (built with Vite).
+- `server.js` - single Node process serving the Vite build (`dist/`) plus `/api`.
 - `data/pact.sqlite` - local runtime database, ignored by git.
 
 More detail:
@@ -30,9 +31,18 @@ Install dependencies:
 npm install
 ```
 
-Start the local API/static server:
+Start the dev server (Vite with the API mounted in-process):
 
 ```sh
+npm run dev
+```
+
+Open the URL Vite prints (<http://localhost:5173/> by default).
+
+To run the production shape locally, build and start the Node server:
+
+```sh
+npm run build
 npm start
 ```
 
@@ -71,7 +81,7 @@ Do not use `PACT_RESET_DB=1` in production unless intentionally clearing data.
 
 ## Onchain Configuration
 
-The browser bundle reads contract ABIs and the deployed OfferingFactory address
+The browser code reads contract ABIs and the deployed OfferingFactory address
 from `src/generated/offering-contracts.js`.
 
 Current Base OfferingFactory:
@@ -86,14 +96,13 @@ Official Base Liquid Split factory:
 0xdEcd8B99b7F763e16141450DAa5EA414B7994831
 ```
 
-Regenerate contract exports and the browser bundle with:
+Regenerate the contract exports (requires Foundry) with:
 
 ```sh
-npm run build:onchain
+npm run build:contracts
 ```
 
-The generated `dist/onchain.bundle.js` is checked in because the current Docker
-path installs production dependencies only and serves static files directly.
+The generated file is checked in so frontend builds do not require Foundry.
 
 ## Tests
 
@@ -115,7 +124,7 @@ Run browser flow tests:
 npm run test:e2e
 ```
 
-`npm test` and `npm run test:e2e` rebuild `dist/onchain.bundle.js` before running.
+`npm run test:e2e` builds the app with Vite before running Playwright.
 
 ## Fly.io Deployment
 

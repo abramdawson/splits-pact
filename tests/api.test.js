@@ -1,9 +1,9 @@
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const {
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
   openDb,
   createRaise,
   getRaise,
@@ -15,7 +15,7 @@ const {
   listRaises,
   listPurchases,
   fetchLiquidSplitHoldersFromExplorer,
-} = require('../server');
+} from '../server.js';
 
 function fixtureRaise() {
   return {

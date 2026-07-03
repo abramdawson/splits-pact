@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 const addr = n => '0x' + String(n).padStart(40, '0');
 const baseUsdc = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';

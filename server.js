@@ -1,7 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const express = require('express');
-const Database = require('better-sqlite3');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import express from 'express';
+import Database from 'better-sqlite3';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_PORT = 7228;
 const DEFAULT_CHAIN_ID = 8453;
@@ -405,7 +408,9 @@ function sendResult(res, result) {
 
 function createApp(options = {}) {
   const app = express();
-  const staticDir = options.staticDir || __dirname;
+  // Production serves the Vite build output; the Vite dev server passes
+  // staticDir: null and handles page/asset requests itself.
+  const staticDir = 'staticDir' in options ? options.staticDir : path.join(__dirname, 'dist');
   const dbPath = options.dbPath || process.env.PACT_DB_PATH || path.join(__dirname, 'data', 'pact.sqlite');
   const db = options.db || openDb(dbPath);
 
@@ -463,17 +468,19 @@ function createApp(options = {}) {
     sendResult(res, setAllocationFunded(db, req.params.id, req.params.allocationId, false));
   });
 
-  app.use(express.static(staticDir, {
-    extensions: ['html'],
-    setHeaders(res, filePath) {
-      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
-    },
-  }));
+  if (staticDir) {
+    app.use(express.static(staticDir, {
+      extensions: ['html'],
+      setHeaders(res, filePath) {
+        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+      },
+    }));
+  }
 
   return app;
 }
 
-if (require.main === module) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT || DEFAULT_PORT);
   const host = process.env.HOST || '0.0.0.0';
   const app = createApp();
@@ -484,7 +491,7 @@ if (require.main === module) {
   setInterval(() => {}, 60000);
 }
 
-module.exports = {
+export {
   createApp,
   openDb,
   readRaise,
