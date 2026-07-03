@@ -25,10 +25,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:opsz,wght@6..72,200..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <style>
-  .overview-list { row-gap: 18px; align-items: start; }
-  .overview-list dt { font-weight: 450; color: var(--muted); }
-  .overview-list dd { font-variant-numeric: normal; line-height: 1.65; }
-  .overview-list ol { margin: 0; padding-left: 18px; }
+  .overview-section + .overview-section { margin-top: 26px; }
+  .overview-section h2 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .overview-section p { line-height: 1.65; }
+  .overview-section ol { margin: 0; padding-left: 18px; line-height: 1.65; }
+  .overview-section li + li { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -40,36 +41,40 @@
   </div>
 
   <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
-    <main class="paper w-full max-w-[760px] px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]">
+    <main class="paper w-full max-w-2xl px-10 py-12 sm:px-14 sm:py-16 text-[14px] leading-[1.65]">
       <div class="mb-9">
-        <h1 class="text-xl font-bold">Purchase Agreement for Community Tokens</h1>
-        <p class="mt-5 text-[15px] leading-7 text-justify">
-          Pact is a lightweight way for projects to raise money by issuing and selling a portion of project tokens along a bonding curve.
+        <h1 class="text-xl font-bold">PACT</h1>
+        <p class="mt-1 text-[13px] t-muted">Purchase Agreement for Community Tokens</p>
+        <p class="mt-5">
+          Run lightweight, early-stage financing rounds without needing to incorporate.
         </p>
       </div>
 
-      <dl class="deflist overview-list mb-10">
-        <dt>Why</dt>
-        <dd>
-          Early community rounds often happen before the final equity, token, or revenue-sharing structure is obvious. Pact gives that round a simple placeholder: buyers fund the treasury now and receive community tokens that can represent future alignment.
-        </dd>
-        <dt>What it is</dt>
-        <dd>
-          It works like a small SAFE-style instrument for community tokens. The issuer specifies the cap table, raise target, maximum dilution, buyer allocations, and the discount curve for early buyers. The cap table is a 0xSplits Liquid Split; purchases are paid in USDC on Base.
-        </dd>
-        <dt>How it works</dt>
-        <dd>
-          <ol class="space-y-2">
-          <li>Create an issuance and deploy the Liquid Split-backed offering.</li>
-          <li>Set buyer allocation sizes and send each buyer a unique purchase link.</li>
-          <li>Buyers connect a wallet, purchase their allocation, and receive tokens.</li>
-          <li>The project treasury receives funds once the minimum is met.</li>
+      <div class="mb-10">
+        <section class="overview-section">
+          <h2>Why</h2>
+          <p>
+            Incorporating, opening a bank account, and fundraising all depend on each other and require time, paperwork, and commitments that can be costly to unwind. Raising capital, however, does not need to be gated by legal structure. At the earliest stages, it runs more on relationships and reputation than on the legal system.
+          </p>
+        </section>
+        <section class="overview-section">
+          <h2>What</h2>
+          <p>
+            It works like a small, lightweight SAFE-style instrument, but lives onchain with public receipts and composable units upon which future equity, tokens, and revenue can be distributed.
+          </p>
+        </section>
+        <section class="overview-section">
+          <h2>How</h2>
+          <ol class="list-decimal">
+            <li>A private issuance is created with a cap table, target amount, post-money valuation, and close date. Upon issuance, cap table holders receive their tokens and the remaining tokens are placed in a bonding curve for buyers to purchase.</li>
+            <li>Buyer-specific allocation links are created by the issuer and sent to each buyer. As buyers purchase their allocations, they receive a pro-rata share of tokens in return.</li>
+            <li>If the round does not reach its minimum by the close date, buyers are refunded. If the minimum is met, the treasury can withdraw funds and close the round.</li>
           </ol>
-        </dd>
-      </dl>
+        </section>
+      </div>
 
       <div class="flex justify-end">
-        <a class="cta inline-flex items-center justify-center px-6 py-3 text-[14px] font-semibold" href="create.html">Create issuance</a>
+        <a class="cta inline-flex items-center justify-center px-6 py-3 text-[14px] font-semibold" href="create.html">Create PACT</a>
       </div>
     </main>
   </div>

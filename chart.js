@@ -2,7 +2,7 @@
 // cfg: { vMin, vMax, cap, F, totalTokens, fMin?, fillF?, hoverF?, forceLight? }
 //   fMin  — threshold fraction (where the minimum raise is reached) → marker
 //   fillF — current fill fraction (how far the round has sold) → "Now" marker + shading
-//   hoverF — readout fraction → price-per-token pill
+//   hoverF — readout fraction → post-money valuation and price-per-token pill
 function drawCurve(canvas, cfg) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height, pad = 78;
@@ -119,14 +119,16 @@ function drawCurve(canvas, cfg) {
     ctx.strokeStyle = P.caption; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]);
     ctx.beginPath(); ctx.moveTo(hx, y0); ctx.lineTo(hx, hy); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = P.curve; ctx.beginPath(); ctx.arc(hx, hy, 7, 0, 7); ctx.fill();
-    const label = '$' + (vAt / totalTokens).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' / token';
+    const primary = cmoney(vAt) + ' post-money';
+    const secondary = '$' + (vAt / totalTokens).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' / token';
     ctx.font = mono(24); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const tw = ctx.measureText(label).width, bw = tw + 20, bh = 32;
+    const tw = Math.max(ctx.measureText(primary).width, ctx.measureText(secondary).width), bw = tw + 20, bh = 54;
     const lx = Math.max(x0 + bw / 2, Math.min(x1 - bw / 2, hx));
     const ly = Math.max(y1 + bh / 2, hy - 30);
     ctx.fillStyle = P.bg; ctx.fillRect(lx - bw / 2, ly - bh / 2, bw, bh);
     ctx.strokeStyle = P.axis; ctx.lineWidth = 1; ctx.strokeRect(lx - bw / 2, ly - bh / 2, bw, bh);
-    ctx.fillStyle = P.text; ctx.fillText(label, lx, ly);
+    ctx.fillStyle = P.text; ctx.fillText(primary, lx, ly - 10);
+    ctx.fillStyle = P.caption; ctx.font = mono(19); ctx.fillText(secondary, lx, ly + 14);
     ctx.textBaseline = 'alphabetic';
   }
 }
