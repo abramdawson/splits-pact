@@ -17,7 +17,8 @@ both static files and API routes.
 
 ## Browser Surfaces
 
-- `index.html` creates an issuance. It validates form fields, previews the
+- `index.html` explains what PACT is and links into the issuance flow.
+- `create.html` creates an issuance. It validates form fields, previews the
   capitalization/curve, connects a wallet, deploys the onchain offering, then
   saves the issuance through the API.
 - `status.html` is the issuer dashboard. It shows offering details/state,
