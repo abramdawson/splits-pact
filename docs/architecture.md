@@ -29,12 +29,11 @@ and API routes.
   offering state, submits USDC approval if needed, calls `Offering.buy`, and
   renders receipt/refund states.
 
-Each page's logic lives in an ES module under `src/pages/`. The status page
-(`src/pages/status.jsx`) is a React app mounted into its page's `#app` div; the
-other pages are vanilla modules. New or substantially reworked pages should
-follow the React pattern, building on the shared primitives in
-`src/components/ui.jsx` (Button, Field/DefList, AddressLink, Notice, ...),
-which map 1:1 onto the design-system classes in `src/app.css`. Shared browser
+Each page is a React app under `src/pages/`, mounted into its page's `#app`
+element and built on the shared primitives in `src/components/ui.jsx` (Button,
+Field/DefList, AddressLink, Notice, ...), which map 1:1 onto the design-system
+classes in `src/app.css`. The wallet, settings, and debug-menu widgets are
+framework-free modules that live outside the React roots. Shared browser
 modules live under `src/`:
 
 - `src/lib/api.js` wraps local API calls.

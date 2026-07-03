@@ -207,6 +207,23 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await page.goto('/create.html');
   await expect(page.locator('#createBtn')).toHaveText('Sign and create issuance');
   await expect(page.locator('#createBtn')).toBeDisabled();
+
+  // leaving a required field empty flags it, and min > max flags both raise fields
+  await page.locator('#proceeds').focus();
+  await page.locator('#proceeds').blur();
+  await expect(page.locator('#proceeds')).toHaveClass(/error/);
+  await page.locator('#raiseMin').fill('20,000');
+  await page.locator('#raiseMin').blur();
+  await expect(page.locator('#raiseMin')).toHaveClass(/error/);
+  await expect(page.locator('#raiseMax')).toHaveClass(/error/);
+  await page.locator('#raiseMax').hover();
+  await expect(page.locator('.err-tip')).toHaveClass(/show/);
+  await page.locator('#raiseMin').fill('5,000');
+  await page.locator('#raiseMin').blur();
+  await expect(page.locator('#raiseMin')).not.toHaveClass(/error/);
+  await expect(page.locator('#raiseMax')).not.toHaveClass(/error/);
+  await expect(page.locator('.err-tip')).not.toHaveClass(/show/);
+
   await page.locator('#projectName').fill('Cross Context PACT');
   await page.locator('#proceeds').fill(addr(1));
   await page.locator('input[data-k="name"]').nth(0).fill(addr(2));
