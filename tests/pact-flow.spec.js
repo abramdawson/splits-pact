@@ -205,7 +205,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   const page = await issuer.newPage();
 
   await page.goto('/create.html');
-  await expect(page.locator('#createBtn')).toHaveText('Create issuance');
+  await expect(page.locator('#createBtn')).toHaveText('Sign and create issuance');
   await expect(page.locator('#createBtn')).toBeDisabled();
   await page.locator('#projectName').fill('Cross Context PACT');
   await page.locator('#proceeds').fill(addr(1));
@@ -215,7 +215,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(page.locator('#createTip')).toContainText('Connect wallet to create issuance');
   await page.locator('#walletToggle').click();
   await expect(page.locator('#walletToggle')).toContainText('0x0000...0009');
-  await expect(page.locator('#createBtn')).toHaveText('Create issuance');
+  await expect(page.locator('#createBtn')).toHaveText('Sign and create issuance');
   await expect(page.locator('#createBtn')).toBeEnabled();
   await page.locator('#createBtn').click();
   await expect(page).toHaveURL(/status\.html\?id=r/);

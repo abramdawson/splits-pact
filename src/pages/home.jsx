@@ -27,6 +27,15 @@ function HomeApp() {
           </p>
         </section>
         <section className="overview-section">
+          <h2>Compared with a SAFE</h2>
+          <p>
+            A SAFE is familiar, legally defined, and built for future equity in an incorporated company. A PACT is lighter: it can happen before incorporation, creates public receipts, and gives supporters composable units that can map to whatever the project becomes.
+          </p>
+          <p className="mt-3">
+            The tradeoff is that a PACT leans more on relationships and reputation up front. The final legal, equity, token, or revenue structure still has to be defined later.
+          </p>
+        </section>
+        <section className="overview-section">
           <h2>How</h2>
           <ol className="list-decimal">
             <li>A private issuance is created with a cap table, target amount, post-money valuation, and close date. Upon issuance, cap table holders receive their tokens and the remaining tokens are placed in a bonding curve for buyers to purchase.</li>

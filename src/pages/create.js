@@ -37,7 +37,7 @@ function updateCreateState() {
   const valid = formIsValid();
   const btn = $('createBtn');
   const tip = $('createTip');
-  btn.textContent = 'Create issuance';
+  btn.textContent = 'Sign and create issuance';
   btn.disabled = !valid || !connectedWallet;
   tip.textContent = btn.disabled
     ? (valid ? 'Connect wallet to create issuance' : 'Complete required fields to create issuance')
@@ -163,10 +163,10 @@ function compute() {
     }
   }
   const minVal = F > 0 ? vMin + (vMax - vMin) * (fMin / F) : cap;
-  $('offerTokens').textContent = fmtShares(F * TOTAL_SHARES);
-  $('minTokens').textContent   = fmtShares(fMin * TOTAL_SHARES);
-  $('fillPct').textContent     = fmtPct(F > 0 ? (fMin / F) * 100 : 0);
-  $('minValOut').textContent   = (cap && raiseMin > 0) ? fmtFull(minVal) : '—';
+  if ($('offerTokens')) $('offerTokens').textContent = fmtShares(F * TOTAL_SHARES);
+  if ($('minTokens')) $('minTokens').textContent = fmtShares(fMin * TOTAL_SHARES);
+  if ($('fillPct')) $('fillPct').textContent = fmtPct(F > 0 ? (fMin / F) * 100 : 0);
+  if ($('minValOut')) $('minValOut').textContent = (cap && raiseMin > 0) ? fmtFull(minVal) : '—';
 
   const keep = 1 - dilution;
   let beforeSum = 0, sharesSum = 0;
@@ -204,9 +204,9 @@ function compute() {
 }
 
 function renderChart(hoverF) {
-  if (curveState) drawCurve($('chart'), Object.assign({}, curveState, { forceLight: forceLightChart, hoverF }));
+  if (curveState) drawCurve($('chart'), Object.assign({}, curveState, { forceLight: forceLightChart, hoverF, defaultF: curveState.fMin, showThreshold: false }));
 }
-attachCurveHover($('chart'), () => curveState ? Object.assign({}, curveState, { forceLight: forceLightChart }) : null);
+attachCurveHover($('chart'), () => curveState ? Object.assign({}, curveState, { forceLight: forceLightChart, defaultF: curveState.fMin, showThreshold: false }) : null);
 
 dilEl.addEventListener('input', e => {
   clamp1(e.target);
@@ -335,7 +335,7 @@ $('createBtn').addEventListener('click', async () => {
     fe.textContent = err.message || 'Could not create issuance.';
     fe.classList.remove('hidden');
     btn.disabled = false;
-    btn.textContent = 'Create issuance';
+    btn.textContent = 'Sign and create issuance';
   }
 });
 
