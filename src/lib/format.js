@@ -9,6 +9,7 @@ export function fmtMoney(n) {
 }
 
 export const fmtDollars = n => '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const fmtPct = n => (Number(n) || 0).toFixed(1) + '%';
 export const fmtTokens = n => Math.round(n).toLocaleString('en-US');
 export const fmtPrice = p => '$' + p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });

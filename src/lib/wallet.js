@@ -1,7 +1,8 @@
 import { PactAPI } from './api.js';
 import { esc } from './format.js';
+import { showToast } from './toast.js';
 import {
-  allocationPath, createPath, currentAllocationRoute, currentCreatePage, currentRaiseId, pactPath,
+  allocationPath, createPath, currentAllocationRoute, currentCreatePage, currentPactId, pactPath,
 } from './routes.js';
 
 const STORAGE_KEY = 'pact-wallet-disconnected';
@@ -13,7 +14,7 @@ let onChange = null;
 let status = 'idle';
 let statusTimer = null;
 let activeProvider = null;
-let issuances = null;
+let pacts = null;
 let purchases = null;
 const providers = [];
 
@@ -27,8 +28,12 @@ function addProvider(detail) {
   const id = detail.info && detail.info.uuid ? detail.info.uuid : providerName(detail) + '-' + providers.length;
   if (providers.some(item => item.id === id || item.provider === detail.provider)) return;
   providers.push({ id, info: detail.info || {}, provider: detail.provider });
-  if (selectedProviderId() === id || !activeProvider) activeProvider = detail.provider;
-  if (selectedProviderId() === id && localStorage.getItem(STORAGE_KEY) !== '1') restoreAccount();
+  // When a provider was previously selected, only it may become active —
+  // announcement order is arbitrary, and restoring from whichever wallet
+  // announces first can surface an account the user never connected here.
+  const stored = selectedProviderId();
+  if (stored ? stored === id : !activeProvider) activeProvider = detail.provider;
+  if (stored === id && localStorage.getItem(STORAGE_KEY) !== '1') restoreAccount();
   render();
 }
 
@@ -89,16 +94,16 @@ function closeMenu() {
 
 function currentPurchaseKey() {
   const route = currentAllocationRoute();
-  return route.raiseId && route.allocationId ? route.raiseId + ':' + route.allocationId : null;
+  return route.pactId && route.allocationId ? route.pactId + ':' + route.allocationId : null;
 }
 
-function renderIssuanceMenu() {
-  if (!issuances) return '<div class="wallet-menu-note">Loading issuances...</div>';
-  const activeRaiseId = currentRaiseId();
+function renderPactMenu() {
+  if (!pacts) return '<div class="wallet-menu-note">Loading issuances...</div>';
+  const activePactId = currentPactId();
   const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
   const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
-  const rows = issuances.length
-    ? issuances.map(raise => `<a href="${pactPath(raise.id)}"><span>${esc(raise.projectName) || 'Untitled issuance'}</span>${raise.id === activeRaiseId ? activeMark : inactiveMark}</a>`).join('')
+  const rows = pacts.length
+    ? pacts.map(pact => `<a href="${pactPath(pact.id)}"><span>${esc(pact.projectName) || 'Untitled issuance'}</span>${pact.id === activePactId ? activeMark : inactiveMark}</a>`).join('')
     : '<div class="wallet-menu-note">No issuances yet</div>';
   const newLink = currentCreatePage() ? '' : `<a href="${createPath()}" class="wallet-menu-action">+ New issuance</a>`;
   return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
@@ -111,8 +116,8 @@ function renderPurchaseMenu() {
   const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
   if (!purchases.length) return '';
   const rows = purchases.map(purchase => {
-    const key = purchase.raiseId + ':' + purchase.allocationId;
-    return `<a href="${allocationPath(purchase.raiseId, purchase.allocationId)}"><span>${esc(purchase.projectName) || 'Untitled purchase'}</span>${key === activeKey ? activeMark : inactiveMark}</a>`;
+    const key = purchase.pactId + ':' + purchase.allocationId;
+    return `<a href="${allocationPath(purchase.pactId, purchase.allocationId)}"><span>${esc(purchase.projectName) || 'Untitled purchase'}</span>${key === activeKey ? activeMark : inactiveMark}</a>`;
   }).join('');
   return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div>${rows}</div>`;
 }
@@ -120,7 +125,7 @@ function renderPurchaseMenu() {
 function renderMenu() {
   if (!menu) return;
   if (account) {
-    menu.innerHTML = '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderIssuanceMenu() + renderPurchaseMenu();
+    menu.innerHTML = '<div class="wallet-menu-group"><div class="wallet-menu-label">Options</div><button type="button" data-wallet-action="copy-address">Copy address</button><button type="button" data-wallet-action="disconnect">Disconnect</button></div>' + renderPactMenu() + renderPurchaseMenu();
     return;
   }
   menu.innerHTML = '';
@@ -135,15 +140,15 @@ function renderMenu() {
 
 async function loadWalletRecords() {
   if (!account) {
-    issuances = [];
+    pacts = [];
     purchases = [];
     return;
   }
-  issuances = null;
+  pacts = null;
   purchases = null;
   renderMenu();
   await Promise.all([
-    PactAPI.listRaises(account).then(result => { issuances = result.raises || []; }).catch(() => { issuances = []; }),
+    PactAPI.listPacts(account).then(result => { pacts = result.pacts || []; }).catch(() => { pacts = []; }),
     PactAPI.listPurchases(account).then(result => { purchases = result.purchases || []; }).catch(() => { purchases = []; }),
   ]);
   renderMenu();
@@ -165,20 +170,6 @@ async function copyAddress() {
   } catch (err) {
     showToast('Could not copy address');
   }
-}
-
-function showToast(message) {
-  let toast = document.getElementById('toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'toast';
-    toast.className = 'toast';
-    document.body.appendChild(toast);
-  }
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toast.classList.remove('show'), 1600);
 }
 
 async function prompt() {
@@ -287,7 +278,10 @@ async function init(options) {
       }
     });
 
-    if (localStorage.getItem(STORAGE_KEY) !== '1') {
+    // With a stored provider selection, restoration waits for that provider's
+    // EIP-6963 announcement (handled in addProvider) instead of asking
+    // whichever provider happens to be active right now.
+    if (!selectedProviderId() && localStorage.getItem(STORAGE_KEY) !== '1') {
       await restoreAccount();
     }
   }

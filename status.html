@@ -3,119 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Raise Status</title>
+<title>PACT — Offering</title>
 <script>
-  (function () {
-    try {
-      var style = localStorage.getItem('bc-style');
-      if (!style) {
-        var f = localStorage.getItem('bc-font');
-        var t = localStorage.getItem('bc-theme');
-        style = f === 'serif' ? 'chambers' : (t === 'dark' || f === 'mono' ? 'cipher' : 'clarity');
-      }
-      if (style && style !== 'clarity') document.documentElement.setAttribute('data-style', style);
-      if (style === 'cipher') document.documentElement.classList.add('dark');
-    } catch (e) {}
-  })();
+  // Apply the saved style preset before first paint to avoid a theme flash.
+  try {
+    var s = localStorage.getItem('pact-style');
+    if (s && s !== 'clarity') document.documentElement.setAttribute('data-style', s);
+    if (s === 'cipher') document.documentElement.classList.add('dark');
+  } catch (e) {}
 </script>
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config = { darkMode: 'class', theme: { fontSize: { xs: ['10px', { lineHeight: '14px' }], sm: ['12px', { lineHeight: '18px' }], base: ['14px', { lineHeight: '21px' }], lg: ['16px', { lineHeight: '24px' }], xl: ['18px', { lineHeight: '26px' }], '2xl': ['22px', { lineHeight: '30px' }], '3xl': ['26px', { lineHeight: '34px' }] }, extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:opsz,wght@6..72,200..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/src/app.css">
-<style>
-  .act { background: none; border: 0; cursor: pointer; font-family: inherit; font-size: var(--text-sm); color: var(--marker); padding: 0; }
-  .act:hover { text-decoration: underline; }
-  .act.danger { color: var(--del); }
-  .act.danger:hover { color: var(--danger); }
-  .act.muted { color: var(--del); }
-  .act.muted:hover { color: var(--marker); }
-  .value-link { color: inherit; text-decoration: none; }
-  .value-link:hover { color: var(--marker); text-decoration: underline; }
-  .cap-link { color: inherit; text-decoration: none; }
-  .cap-link:hover { color: var(--marker); text-decoration: underline; }
-  .alloc-actions { display: inline-flex; align-items: baseline; gap: 12px; }
-  .alloc-entry .blank { width: 100%; }
-  .alloc-entry td { height: 31px; }
-  .exhibit tr.alloc-entry td { border-bottom: 1px solid var(--table-line); }
-  .offering-actions { margin-top: 28px; }
-  .offering-action-group { border: 1px solid var(--paper-border); border-radius: var(--radius-large); overflow: visible; }
-  .offering-action-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 5px 8px 5px 10px; }
-  .offering-action-row + .offering-action-row { border-top: 1px solid var(--paper-border); }
-  .offering-action-copy { min-width: 0; }
-  .offering-action-label { font-weight: 450; }
-  .offering-action-row button { height: 34px; display: inline-flex; align-items: center; flex: 0 0 auto; }
-  .secondary-action { border: 1px solid var(--paper-border); border-radius: var(--radius-default); background: var(--paper); color: var(--ink); gap: 8px; }
-  .secondary-action:hover { background: var(--field-bg); }
-  .secondary-action svg { width: 14px; height: 14px; }
-  .warning-action { border: 1px solid var(--paper-border); border-radius: var(--radius-default); background: var(--paper); color: var(--danger); gap: 8px; }
-  .warning-action:hover { background: var(--field-bg); }
-  .offering-action-row button:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(1); }
-  .offering-action-row .cta:disabled:hover { background: var(--cta-bg); }
-  .offering-action-row .secondary-action:disabled:hover,
-  .offering-action-row .warning-action:disabled:hover { background: var(--paper); }
-  @media (max-width: 560px) {
-    .offering-action-row { align-items: flex-start; flex-direction: column; gap: 12px; }
-  }
-  .status-state { position: relative; display: inline; padding-left: 20px; }
-  .status-dot { position: absolute; left: 0; top: 50%; width: 14px; height: 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: #fff; transform: translateY(-50%); }
-  .status-dot svg { width: 10px; height: 10px; }
-  .status-dot.secured { background: var(--ok); }
-  .status-dot.closed { background: var(--ink); }
-  .status-dot.failed { background: var(--danger); }
-  .status-dot.funding { background: var(--muted); }
-  .alloc-table { table-layout: fixed; }
-  .alloc-table td:nth-child(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .alloc-table th:nth-child(2), .alloc-table td:nth-child(2) { width: 100px; }
-  .alloc-table th:nth-child(3), .alloc-table td:nth-child(3) { width: 300px; }
-  .alloc-table th:nth-child(4), .alloc-table td:nth-child(4) { width: 140px; }
-  .tokencell { position: relative; text-decoration: underline dotted; text-decoration-color: var(--muted); text-underline-offset: 3px; }
-  .tokencell .tip2 { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: var(--text-xs); line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; text-decoration: none; }
-  .tokencell:hover .tip2 { opacity: 1; }
-  .action-tip-wrap { position: relative; display: inline-flex; flex: 0 0 auto; }
-  .action-tip { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: var(--text-xs); line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; }
-  .action-tip-wrap:hover .action-tip { opacity: 1; }
-  .notice { border: 1px dotted var(--line-dotted); padding: 14px 16px; text-align: center; color: var(--muted); }
-  .debug-menu { position: fixed; right: 16px; bottom: 16px; z-index: 30; display: none; }
-  .debug-menu.show { display: block; }
-  .debug-toggle { height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-default); background: var(--ink); color: var(--paper); font-family: inherit; font-size: var(--text-sm); cursor: pointer; }
-  .debug-panel { position: absolute; right: 0; bottom: 40px; width: 190px; padding: 2px; border-radius: var(--radius-default); background: #202020; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.18); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 120ms ease, transform 120ms ease; }
-  .debug-panel.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
-  .debug-label { padding: 6px 8px 4px; color: rgba(255,255,255,.55); font-size: var(--text-xs); font-weight: 500; }
-  .debug-panel button { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: var(--radius-small); padding: 5px 8px; background: transparent; color: #fff; font-family: inherit; font-size: var(--text-sm); cursor: pointer; text-align: left; }
-  .debug-panel button:hover { background: var(--link); }
-  .debug-check { width: 12px; height: 12px; opacity: 0; position: relative; }
-  .debug-check::after { content: ''; position: absolute; left: 3px; top: 1px; width: 5px; height: 9px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); }
-  .debug-panel button.active .debug-check { opacity: 1; }
-</style>
 </head>
 <body>
-  <div class="top-controls">
-    <button id="walletToggle" class="wallet-toggle" type="button">Connect wallet</button>
-    <button id="settingsToggle" class="settings-toggle" type="button" aria-label="Settings" title="Settings">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.7 3.4 10.5 2h3l.8 1.4 1.8.7 1.5-.4 2.1 2.1-.4 1.5.7 1.8 1.4.8v3l-1.4.8-.7 1.8.4 1.5-2.1 2.1-1.5-.4-1.8.7-.8 1.4h-3l-.8-1.4-1.8-.7-1.5.4-2.1-2.1.4-1.5-.7-1.8L2 13.5v-3l1.4-.8.7-1.8-.4-1.5 2.1-2.1 1.5.4 1.8-.7Z"/><circle cx="12" cy="12" r="3"/></svg>
-    </button>
-  </div>
-
   <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
     <div class="paper w-full max-w-[820px] px-10 py-12 sm:px-16 sm:py-16 text-base leading-[1.5]">
       <div id="app"></div>
-    </div>
-  </div>
-  <div id="toast" class="toast"></div>
-  <div id="debugMenu" class="debug-menu">
-    <button id="debugToggle" class="debug-toggle" type="button">Debug</button>
-    <div id="debugPanel" class="debug-panel">
-      <div class="debug-label">Offering state</div>
-      <button type="button" data-debug-state="live"><span>Live</span><span class="debug-check" aria-hidden="true"></span></button>
-      <button type="button" data-debug-state="loading"><span>Loading</span><span class="debug-check" aria-hidden="true"></span></button>
-      <button type="button" data-debug-state="error"><span>Read failed</span><span class="debug-check" aria-hidden="true"></span></button>
-      <button type="button" data-debug-state="funding"><span>Funding</span><span class="debug-check" aria-hidden="true"></span></button>
-      <button type="button" data-debug-state="secured"><span>Secured</span><span class="debug-check" aria-hidden="true"></span></button>
-      <button type="button" data-debug-state="withdrawn"><span>Withdrawn</span><span class="debug-check" aria-hidden="true"></span></button>
-      <button type="button" data-debug-state="failed"><span>Failed</span><span class="debug-check" aria-hidden="true"></span></button>
-      <button type="button" data-debug-state="closed"><span>Closed</span><span class="debug-check" aria-hidden="true"></span></button>
     </div>
   </div>
 

@@ -33,8 +33,8 @@ SQLite database on next boot.
 
 ## Fly.io Setup
 
-The repository includes the production `fly.toml` for the `splits-pact` Fly app.
-`fly.toml.example` is kept as a template for creating another app.
+The repository includes the production `fly.toml` for the `splits-pact` Fly
+app; adapt the app name and region to deploy your own.
 
 1. Create the app:
 

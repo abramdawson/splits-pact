@@ -1,48 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { injectChrome } from '../lib/chrome.js';
+import { showToast } from '../lib/toast.js';
 import { PactAPI } from '../lib/api.js';
 import { PactWallet } from '../lib/wallet.js';
 import { PactSettings } from '../lib/settings.js';
+import { useWallet } from '../lib/use-wallet.js';
+import { useOfferingState } from '../lib/use-offering-state.js';
+import { isTxHash } from '../lib/validate.js';
 import {
-  fmtMoney, fmtDollars, fmtTokens, fmtPrice, fmtDate, usdcBaseUnitsToDollars,
-  shortAddr, basescanTx,
+  fmtMoney, fmtDollars, fmtPct, fmtTokens, fmtPrice, fmtDate, usdcBaseUnitsToDollars,
+  basescanTx,
 } from '../lib/format.js';
-import { tokensBetween, offeringCurveParams, costForUnits, valuationForUnitIndex } from '../lib/curve.js';
+import { tokensBetween, offeringCurveParams, costForUnits, unitsForBudget, valuationForUnitIndex } from '../lib/curve.js';
 import { initDebugMenu, isLocalhost } from '../lib/debug-menu.js';
-import { currentAllocationRoute, redirectLegacyRoute } from '../lib/routes.js';
-import { getOfferingState, getOfferingPurchaseFromTx, buyOffering, refundOffering } from '../onchain.js';
-import { AddressLink, Button, DefList, Field, Loading, Notice, SectionTitle, Sub } from '../components/ui.jsx';
+import { currentAllocationRoute } from '../lib/routes.js';
+import { getOfferingPurchaseFromTx, getOfferingPurchaseForBuyer, buyOffering, refundOffering } from '../lib/onchain.js';
+import { AddressLink, Button, DefList, Field, Notice, SectionTitle, Sub } from '../components/ui.jsx';
 
-redirectLegacyRoute();
-const { raiseId, allocationId: allocId } = currentAllocationRoute();
+const { pactId, allocationId } = currentAllocationRoute();
 
-const fmtPct = v => (Math.round(v * 10) / 10).toFixed(1) + '%';
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
-const isTxHash = value => /^0x[a-fA-F0-9]{64}$/.test(String(value || ''));
 
-const fundedTotal = r => r.allocations.filter(a => a.status === 'funded').reduce((s, a) => s + a.amountUsd, 0);
-
-function quoteAllocationFromState(curve, state, amountUsd) {
-  if (!curve || !state) return null;
-  const budget = Math.floor(Number(amountUsd || 0) * 1000000);
-  let units = 0;
-  const remaining = Number(state.remainingUnits || 0);
-  const sold = Number(state.unitsSold || 0);
-  for (let candidate = 1; candidate <= remaining; candidate++) {
-    const cost = costForUnits(curve, sold, candidate);
-    if (cost > budget) break;
-    units = candidate;
-  }
-  return { units, cost: costForUnits(curve, sold, units) };
-}
+const fundedTotal = pact => pact.allocations.filter(a => a.status === 'funded').reduce((s, a) => s + a.amountUsd, 0);
 
 function debugActive(debugState) {
   return isLocalhost() && debugState !== 'live';
 }
 
-function debugOfferingSnapshot(r, allocation, live, debugState) {
+function debugOfferingSnapshot(pact, allocation, live, debugState) {
   if (!debugActive(debugState)) return live;
-  const curveUnits = Number(r && r.newMoney && r.newMoney.tokens || 0);
+  const curveUnits = Number(pact && pact.newMoney && pact.newMoney.tokens || 0);
   const base = {
     remainingUnits: curveUnits,
     unitsSold: 0,
@@ -50,7 +38,7 @@ function debugOfferingSnapshot(r, allocation, live, debugState) {
     state: 0,
     raised: 0,
     withdrawn: 0,
-    raiseMin: Math.round(Number(r && r.raise && r.raise.min || 0) * 1000000),
+    raiseMin: Math.round(Number(pact && pact.raise && pact.raise.min || 0) * 1000000),
     closeDate: Math.floor((Date.now() + 7 * 86400000) / 1000),
     deposit: allocation && allocation.status === 'funded'
       ? Number(allocation.purchaseCostUsdcBaseUnits || Math.round(Number(allocation.amountUsd || 0) * 1000000))
@@ -64,28 +52,28 @@ function debugOfferingSnapshot(r, allocation, live, debugState) {
   return live;
 }
 
-function tokensForFunded(r, alloc) {
-  const funded = r.allocations.filter(x => x.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0));
+function tokensForFunded(pact, allocation) {
+  const funded = pact.allocations.filter(x => x.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0));
   let cum = 0;
   for (const x of funded) {
-    if (x.id === alloc.id) return tokensBetween(r, cum, cum + x.amountUsd);
+    if (x.id === allocation.id) return tokensBetween(pact, cum, cum + x.amountUsd);
     cum += x.amountUsd;
   }
   return 0;
 }
 
-function receiptKey(r, allocation) {
+function receiptKey(pact, allocation) {
   return [
-    r && r.id,
+    pact && pact.id,
     allocation && allocation.id,
-    r && r.liquidSplitAddress,
+    pact && pact.liquidSplitAddress,
     allocation && allocation.buyerWallet,
   ].join(':');
 }
 
 function PageNotice({ title, children }) {
   return (
-    <Notice>
+    <Notice className="mb-8">
       <div className="font-bold mb-1">{title}</div>
       <div className="t-muted text-sm">{children}</div>
     </Notice>
@@ -106,71 +94,33 @@ function StatusDot({ refundable = false }) {
 
 function BuyApp() {
   // `undefined` = still fetching (render nothing), `null` = not found.
-  const [raise, setRaiseState] = useState(undefined);
-  const [offering, setOffering] = useState(null);
+  const [pact, setPact] = useState(undefined);
   const [receipt, setReceipt] = useState(null);
-  const [wallet, setWallet] = useState(null);
   const [debugState, setDebugState] = useState('live');
   const [busy, setBusy] = useState(null);
   const [debugPreview, setDebugPreview] = useState(false);
-  const [pageNotice, setPageNotice] = useState(null);
-
-  const raiseRef = useRef(undefined);
-  const walletRef = useRef(null);
   const debugRef = useRef('live');
-  const setRaise = r => { raiseRef.current = r; setRaiseState(r); };
+  const recoveringRef = useRef(false);
 
-  // Any state change that used to trigger a full re-render clears an
-  // error notice, matching the old imperative page.
-  useEffect(() => { setPageNotice(null); }, [wallet, debugState, offering, receipt]);
+  const wallet = useWallet({
+    onError: err => showToast(err.message || 'Could not connect wallet.'),
+  });
+  const { offering, refresh: refreshOffering } = useOfferingState({
+    offeringAddress: pact && pact.offeringAddress,
+    buyer: wallet,
+  });
 
-  async function refreshOnchainOffering() {
-    const r = raiseRef.current;
-    if (!r || !r.offeringAddress) return;
-    try {
-      const state = await getOfferingState({
-        offeringAddress: r.offeringAddress,
-        buyer: walletRef.current || undefined,
-        provider: PactWallet.provider,
-      });
-      setOffering({ status: 'loaded', ...state });
-    } catch (err) {
-      setOffering({ status: 'error', error: err.message || 'Could not read offering state.' });
-    }
-  }
-
-  async function refreshOnchainReceipt() {
-    const r = raiseRef.current;
-    const a = r && (r.allocations || []).find(x => x.id === allocId);
-    if (!r || !a || a.status !== 'funded' || !r.offeringAddress || !a.buyerWallet || !a.txHash) return;
-    const key = receiptKey(r, a);
-    setReceipt({ key, status: 'loading' });
-    try {
-      const purchase = await getOfferingPurchaseFromTx({
-        offeringAddress: r.offeringAddress,
-        txHash: a.txHash,
-        buyer: a.buyerWallet,
-        provider: PactWallet.provider,
-      });
-      setReceipt({ key, status: 'loaded', tokens: Number(purchase.units), cost: Number(purchase.cost) });
-    } catch (err) {
-      setReceipt({ key, status: 'error', error: err.message || 'Could not read onchain ownership.' });
-    }
-  }
+  const allocation = pact ? (pact.allocations || []).find(x => x.id === allocationId) : null;
 
   useEffect(() => {
-    PactWallet.init({
-      buttonId: 'walletToggle',
-      onChange: account => {
-        walletRef.current = account;
-        setWallet(account);
-        setOffering(null);
-        refreshOnchainOffering();
-        refreshOnchainReceipt();
-      },
-      onError: err => setPageNotice({ title: 'Wallet unavailable', body: err.message || 'Could not connect wallet.' }),
-    });
     initDebugMenu({
+      states: [
+        { value: 'live', label: 'Live' },
+        { value: 'funding', label: 'Funding' },
+        { value: 'failed', label: 'Failed' },
+        { value: 'refunded', label: 'Refunded' },
+        { value: 'closed', label: 'Closed' },
+      ],
       getState: () => debugRef.current,
       setState: state => {
         debugRef.current = state;
@@ -178,117 +128,163 @@ function BuyApp() {
       },
     });
     (async () => {
-      if (!raiseId) {
-        setRaise(null);
+      if (!pactId) {
+        setPact(null);
         return;
       }
-      let r = null;
+      let loaded = null;
       try {
-        r = await PactAPI.getRaise(raiseId);
+        loaded = await PactAPI.getPact(pactId);
       } catch (err) {}
-      setRaise(r);
-      setReceipt(null);
-      setOffering(null);
-      refreshOnchainOffering();
-      refreshOnchainReceipt();
+      setPact(loaded);
     })();
   }, []);
 
-  const r = raise;
-  const a = r ? (r.allocations || []).find(x => x.id === allocId) : null;
-
   useEffect(() => {
-    if (r && a) document.title = `${r.projectName} | ${a.name}`;
-  }, [r, a]);
+    if (pact && allocation) document.title = `${pact.projectName} | ${allocation.name}`;
+  }, [pact, allocation]);
+
+  // Confirm the recorded purchase against the chain.
+  useEffect(() => {
+    if (!pact || !allocation || allocation.status !== 'funded') return;
+    if (!pact.offeringAddress || !allocation.buyerWallet || !allocation.txHash) return;
+    const key = receiptKey(pact, allocation);
+    setReceipt({ key, status: 'loading' });
+    (async () => {
+      try {
+        const purchase = await getOfferingPurchaseFromTx({
+          offeringAddress: pact.offeringAddress,
+          txHash: allocation.txHash,
+          buyer: allocation.buyerWallet,
+        });
+        setReceipt({ key, status: 'loaded', tokens: Number(purchase.units), cost: Number(purchase.cost) });
+      } catch (err) {
+        setReceipt({ key, status: 'error', error: err.message || 'Could not read onchain ownership.' });
+      }
+    })();
+  }, [pact && pact.id, allocation && allocation.id, allocation && allocation.status, allocation && allocation.txHash]);
+
+  // Self-heal: a purchase can settle onchain and still miss the local
+  // database (browser closed between transaction and record). If this wallet
+  // has a deposit but no funded allocation anywhere in the PACT, recover the
+  // purchase from the Bought event and record it.
+  const deposit = offering && offering.status === 'loaded' ? Number(offering.deposit || 0) : 0;
+  useEffect(() => {
+    if (!wallet || !pact || !allocation || allocation.status === 'funded' || deposit <= 0) return;
+    if (debugActive(debugState) || recoveringRef.current) return;
+    const alreadyRecorded = (pact.allocations || []).some(a =>
+      a.status === 'funded' && String(a.buyerWallet || '').toLowerCase() === String(wallet).toLowerCase());
+    if (alreadyRecorded) return;
+    recoveringRef.current = true;
+    (async () => {
+      try {
+        const purchase = await getOfferingPurchaseForBuyer({
+          offeringAddress: pact.offeringAddress,
+          buyer: wallet,
+          deploymentTxHash: pact.offeringTxHash,
+        });
+        if (!purchase) return;
+        const result = await PactAPI.fundAllocation(pact.id, allocation.id, wallet, {
+          txHash: purchase.txHash,
+          tokensPurchased: purchase.units,
+          purchaseCostUsdcBaseUnits: purchase.cost,
+        });
+        setPact(result.pact);
+      } catch (err) {
+        console.warn('Could not recover onchain purchase', err);
+      } finally {
+        recoveringRef.current = false;
+      }
+    })();
+  }, [wallet, deposit, pact && pact.id, allocation && allocation.id, allocation && allocation.status, debugState]);
 
   async function handleRefund() {
-    if (debugActive(debugRef.current)) {
+    if (debugActive(debugState)) {
       setDebugPreview(true);
       setTimeout(() => setDebugPreview(false), 900);
       return;
     }
-    if (!walletRef.current) {
-      setPageNotice({ title: 'Wallet required', body: 'Connect the purchasing wallet before refunding.' });
+    if (!wallet) {
+      showToast('Connect the purchasing wallet before refunding.');
       return;
     }
-    const current = raiseRef.current;
-    if (!current || !current.offeringAddress) return;
+    if (!pact || !pact.offeringAddress) return;
     setBusy('refund');
     try {
-      await refundOffering({ provider: PactWallet.provider, offeringAddress: current.offeringAddress, from: walletRef.current });
-      setOffering(null);
-      refreshOnchainOffering();
+      await refundOffering({ provider: PactWallet.provider, offeringAddress: pact.offeringAddress, from: wallet });
+      await refreshOffering();
     } catch (err) {
-      setPageNotice({ title: 'Refund failed', body: err.message || 'Could not complete refund.' });
+      showToast(err.message || 'Could not complete refund.');
     }
     setBusy(null);
   }
 
   async function handlePay() {
-    if (!walletRef.current) {
-      setPageNotice({ title: 'Wallet required', body: 'Connect a wallet before purchasing this offering.' });
+    if (!wallet) {
+      showToast('Connect a wallet before purchasing this offering.');
       return;
     }
-    const current = raiseRef.current;
-    const alloc = current && (current.allocations || []).find(x => x.id === allocId);
-    if (!alloc) return;
+    if (!allocation) return;
     setBusy('pay');
     try {
       const purchase = await buyOffering({
         provider: PactWallet.provider,
-        issuance: current,
-        buyer: walletRef.current,
-        amountUsd: alloc.amountUsd,
+        pact,
+        buyer: wallet,
+        amountUsd: allocation.amountUsd,
       });
-      const purchaseRecord = {
+      const result = await PactAPI.fundAllocation(pact.id, allocation.id, wallet, {
         txHash: purchase.buyTxHash,
         tokensPurchased: purchase.units,
         purchaseCostUsdcBaseUnits: purchase.cost,
-      };
-      const result = await PactAPI.fundAllocation(current.id, alloc.id, walletRef.current, purchaseRecord);
-      setRaise(result.raise);
+      });
+      setPact(result.pact);
       setReceipt(null);
-      setOffering(null);
-      refreshOnchainOffering();
-      refreshOnchainReceipt();
+      refreshOffering();
     } catch (err) {
-      setPageNotice({ title: 'Purchase failed', body: err.message || 'Could not complete purchase.' });
+      showToast(err.message || 'Could not complete purchase.');
     }
     setBusy(null);
   }
 
-  if (pageNotice) return <PageNotice title={pageNotice.title}>{pageNotice.body}</PageNotice>;
-  if (raise === undefined) return null;
-  if (!r) return <PageNotice title="Link not found">This buy-in link doesn’t match any known offering.</PageNotice>;
-  if (!a) return <PageNotice title="Link not found">This allocation no longer exists — the project may have removed it.</PageNotice>;
+  if (pact === undefined) return null;
+  if (!pact) return <PageNotice title="Link not found">This buy-in link doesn’t match any known offering.</PageNotice>;
+  if (!allocation) return <PageNotice title="Link not found">This allocation no longer exists — the project may have removed it.</PageNotice>;
 
-  const funded = fundedTotal(r);
+  const a = allocation;
+  const funded = fundedTotal(pact);
   const liveOfferingState = offering && offering.status === 'loaded' ? offering : null;
-  const offeringState = debugOfferingSnapshot(r, a, liveOfferingState, debugState);
-  const closeDate = offeringState && offeringState.closeDate ? offeringState.closeDate * 1000 : r.createdAt + r.minimum.deadlineDays * 86400000;
+  const offeringState = debugOfferingSnapshot(pact, a, liveOfferingState, debugState);
+  const closeDate = offeringState && offeringState.closeDate ? offeringState.closeDate * 1000 : pact.createdAt + pact.minimum.deadlineDays * 86400000;
   const offeringFailed = offeringState && offeringState.state === 1;
   const debugRefunded = debugState === 'refunded';
   const offeringClosed = offeringState && offeringState.state === 2;
-  const raiseClosed = offeringState ? offeringFailed || offeringClosed || (offeringState.state === 0 && Date.now() > closeDate && !offeringState.minMet) : funded >= r.raise.max || Date.now() > closeDate;
-  const curve = offeringCurveParams(r);
-  const remainingUnits = offeringState ? Number(offeringState.remainingUnits || 0) : Math.max(0, Number(r.newMoney && r.newMoney.tokens || 0) - tokensBetween(r, 0, funded));
-  const remainingCapacity = offeringState && curve ? usdcBaseUnitsToDollars(costForUnits(curve, Number(offeringState.unitsSold || 0), remainingUnits)) : Math.max(0, r.raise.max - funded);
+  const raiseClosed = offeringState ? offeringFailed || offeringClosed || (offeringState.state === 0 && Date.now() > closeDate && !offeringState.minMet) : funded >= pact.raise.max || Date.now() > closeDate;
+  const curve = offeringCurveParams(pact);
+  const remainingUnits = offeringState ? Number(offeringState.remainingUnits || 0) : Math.max(0, Number(pact.newMoney && pact.newMoney.tokens || 0) - tokensBetween(pact, 0, funded));
+  const remainingCapacity = offeringState && curve ? usdcBaseUnitsToDollars(costForUnits(curve, Number(offeringState.unitsSold || 0), remainingUnits)) : Math.max(0, pact.raise.max - funded);
   const raisedTotal = offeringState ? usdcBaseUnitsToDollars(offeringState.raised) : funded;
-  const raiseCapacity = offeringState && curve ? Math.max(raisedTotal + remainingCapacity, r.raise.min, raisedTotal) : r.raise.max;
-  const valuationStart = curve ? valuationForUnitIndex(curve, 0, r.totalTokens) : r.valuation.floor;
-  const valuationEnd = curve ? valuationForUnitIndex(curve, Number(offeringState && offeringState.unitsSold || 0) + remainingUnits, r.totalTokens) : r.valuation.ceiling;
+  const raiseCapacity = offeringState && curve ? Math.max(raisedTotal + remainingCapacity, pact.raise.min, raisedTotal) : pact.raise.max;
+  const valuationStart = curve ? valuationForUnitIndex(curve, 0, pact.totalTokens) : pact.valuation.floor;
+  const valuationEnd = curve ? valuationForUnitIndex(curve, Number(offeringState && offeringState.unitsSold || 0) + remainingUnits, pact.totalTokens) : pact.valuation.ceiling;
   const isPaid = a.status === 'funded';
-  const localTokens = isPaid ? tokensForFunded(r, a) : tokensBetween(r, funded, funded + a.amountUsd);
-  const receiptState = receipt && receipt.key === receiptKey(r, a) ? receipt : null;
+  const localTokens = isPaid ? tokensForFunded(pact, a) : tokensBetween(pact, funded, funded + a.amountUsd);
+  const receiptState = receipt && receipt.key === receiptKey(pact, a) ? receipt : null;
   const dbTokens = Number(a.tokensPurchased || 0);
   const dbCostBaseUnits = Number(a.purchaseCostUsdcBaseUnits || 0);
   const hasPurchaseData = isPaid && dbTokens > 0 && dbCostBaseUnits > 0;
   const hasOnchainReceipt = isPaid && receiptState && receiptState.status === 'loaded';
   const purchasedTokens = hasPurchaseData ? dbTokens : (hasOnchainReceipt ? receiptState.tokens : localTokens);
   const purchaseCost = hasPurchaseData ? usdcBaseUnitsToDollars(dbCostBaseUnits) : (hasOnchainReceipt ? usdcBaseUnitsToDollars(receiptState.cost) : a.amountUsd);
-  const allocationQuote = !isPaid && offeringState && curve ? quoteAllocationFromState(curve, offeringState, a.amountUsd) : null;
+  const allocationQuote = !isPaid && offeringState && curve
+    ? (() => {
+        const sold = Number(offeringState.unitsSold || 0);
+        const units = unitsForBudget(curve, sold, Number(offeringState.remainingUnits || 0), Math.floor(Number(a.amountUsd || 0) * 1000000));
+        return { units, cost: costForUnits(curve, sold, units) };
+      })()
+    : null;
   const allocationQuoteLoading = !isPaid && !offeringState;
-  const allocationTokens = isPaid ? (localTokens || purchasedTokens) : (allocationQuote ? allocationQuote.units : tokensBetween(r, funded, funded + a.amountUsd));
+  const allocationTokens = isPaid ? (localTokens || purchasedTokens) : (allocationQuote ? allocationQuote.units : tokensBetween(pact, funded, funded + a.amountUsd));
   const allocationCost = allocationQuote ? usdcBaseUnitsToDollars(allocationQuote.cost) : a.amountUsd;
   const allocationPricePer = allocationTokens > 0 ? allocationCost / allocationTokens : 0;
   const pricePer = purchasedTokens > 0 ? purchaseCost / purchasedTokens : 0;
@@ -327,17 +323,17 @@ function BuyApp() {
   } else if (!wallet) {
     action = (
       <>
-        <p className="text-sm t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(r.raise.min)} by {fmtDate(closeDate)}.</p>
+        <p className="text-sm t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(pact.raise.min)} by {fmtDate(closeDate)}.</p>
         <Notice>Connect a wallet before purchasing this offering.</Notice>
       </>
     );
   } else {
     action = (
       <>
-        <p className="text-sm t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(r.raise.min)} by {fmtDate(closeDate)}.</p>
+        <p className="text-sm t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(pact.raise.min)} by {fmtDate(closeDate)}.</p>
         <div className="flex justify-end">
           <Button className="px-6 py-3 text-base font-semibold" data-act="pay" disabled={busy === 'pay'} onClick={handlePay}>
-            {busy === 'pay' ? 'Purchasing...' : `Purchase ${r.projectName}`}
+            {busy === 'pay' ? 'Purchasing...' : `Purchase ${pact.projectName}`}
           </Button>
         </div>
       </>
@@ -347,21 +343,21 @@ function BuyApp() {
   return (
     <>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">{r.projectName} | {a.name}</h1>
+        <h1 className="text-2xl font-bold">{pact.projectName} | {a.name}</h1>
         <p className="text-sm t-muted mt-1">This is a Purchase Agreement for Community Tokens (a &ldquo;PACT&rdquo;). You&rsquo;re buying community tokens that align holders with the project and carry no inherent value of their own.</p>
       </div>
 
       <SectionTitle>Offering details</SectionTitle>
       <DefList className="mb-8">
         <Field label="Raising">
-          <span>Up to {fmtDollars(raiseCapacity)}</span><Sub>{fmtDollars(r.raise.min)} minimum</Sub>
+          <span>Up to {fmtDollars(raiseCapacity)}</span><Sub>{fmtDollars(pact.raise.min)} minimum</Sub>
         </Field>
         <Field label="Valuation range" align="none">{fmtMoney(valuationStart)}–{fmtMoney(valuationEnd)} post-money</Field>
         <Field label="Close date">
           <span>{fmtDate(closeDate)}</span><Sub>{relDays(closeDate)}</Sub>
         </Field>
         <Field label="Treasury" align="none">
-          {r.proceedsAddress ? <AddressLink address={r.proceedsAddress} /> : <span className="t-muted">Not set</span>}
+          {pact.proceedsAddress ? <AddressLink address={pact.proceedsAddress} /> : <span className="t-muted">Not set</span>}
         </Field>
       </DefList>
 
@@ -373,7 +369,7 @@ function BuyApp() {
           <DefList className="mb-5">
             <Field label="Amount" align="none">{fmtDollars(a.amountUsd)}</Field>
             <Field label="Implied ownership" loading={allocationQuoteLoading}>
-              <span>{fmtPct(allocationTokens / r.totalTokens * 100)}</span><Sub>{fmtTokens(allocationTokens)} tokens</Sub>
+              <span>{fmtPct(allocationTokens / pact.totalTokens * 100)}</span><Sub>{fmtTokens(allocationTokens)} tokens</Sub>
             </Field>
             <Field label="Price per token" align="none" loading={allocationQuoteLoading}>{fmtPrice(allocationPricePer)}</Field>
           </DefList>
@@ -414,7 +410,7 @@ function BuyApp() {
             <Field label="Ownership" align="none">
               {receiptState && receiptState.status === 'loading'
                 ? <span className="t-muted">Loading onchain ownership...</span>
-                : <><span>{fmtPct(purchasedTokens / r.totalTokens * 100)}</span><span className="t-muted ml-2">{fmtTokens(purchasedTokens)} tokens</span></>}
+                : <><span>{fmtPct(purchasedTokens / pact.totalTokens * 100)}</span><span className="t-muted ml-2">{fmtTokens(purchasedTokens)} tokens</span></>}
             </Field>
             <Field label="Price per token" align="none">{fmtPrice(pricePer)}</Field>
           </DefList>
@@ -426,5 +422,6 @@ function BuyApp() {
   );
 }
 
+injectChrome();
 PactSettings.init({ buttonId: 'settingsToggle' });
 createRoot(document.getElementById('app')).render(<BuyApp />);

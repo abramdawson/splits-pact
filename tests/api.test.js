@@ -3,21 +3,21 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { openDb } from '../server/db.js';
 import {
-  openDb,
-  createRaise,
-  getRaise,
+  createPact,
+  getPact,
   addAllocation,
   deleteAllocation,
   fundAllocation,
   syncOfferingState,
   syncCapTableState,
-  listRaises,
+  listPacts,
   listPurchases,
-  fetchLiquidSplitHoldersFromExplorer,
-} from '../server.js';
+} from '../server/pacts.js';
+import { fetchLiquidSplitHoldersFromExplorer } from '../server/explorer.js';
 
-function fixtureRaise() {
+function fixturePact() {
   return {
     projectName: 'Test PACT',
     raise: { min: 5000, max: 10000 },
@@ -50,31 +50,51 @@ function withDb(fn) {
   }
 }
 
-test('creates and reads a raise', () => {
+test('creates and reads a pact', () => {
   withDb(db => {
-    const created = createRaise(db, fixtureRaise());
+    const created = createPact(db, fixturePact());
     assert.equal(created.status, 201);
     assert.match(created.body.id, /^r/);
     assert.equal(created.body.allocations.length, 0);
 
-    const read = getRaise(db, created.body.id);
+    const read = getPact(db, created.body.id);
     assert.equal(read.status, 200);
     assert.equal(read.body.projectName, 'Test PACT');
   });
 });
 
+test('migrates a legacy raises table to pacts', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pact-migrate-'));
+  const dbPath = path.join(dir, 'test.sqlite');
+  try {
+    let db = openDb(dbPath);
+    db.exec('ALTER TABLE pacts RENAME TO raises');
+    db.prepare('INSERT INTO raises (id, data, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run('rlegacy', JSON.stringify({ id: 'rlegacy', projectName: 'Legacy' }), 1, 1);
+    db.close();
+
+    db = openDb(dbPath);
+    const read = getPact(db, 'rlegacy');
+    assert.equal(read.status, 200);
+    assert.equal(read.body.projectName, 'Legacy');
+    db.close();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('funds an allocation and records the purchase', () => {
   withDb(db => {
-    const created = createRaise(db, fixtureRaise());
-    const raiseId = created.body.id;
+    const created = createPact(db, fixturePact());
+    const pactId = created.body.id;
 
-    const added = addAllocation(db, raiseId, { name: 'Buyer One', amountUsd: 1500 });
+    const added = addAllocation(db, pactId, { name: 'Buyer One', amountUsd: 1500 });
     assert.equal(added.status, 201);
     assert.equal(added.body.allocation.status, 'allocated');
 
     const allocationId = added.body.allocation.id;
     const txHash = '0x' + '8'.repeat(64);
-    const funded = fundAllocation(db, raiseId, allocationId, { buyerWallet: '0x0000000000000000000000000000000000000008', txHash });
+    const funded = fundAllocation(db, pactId, allocationId, { buyerWallet: '0x0000000000000000000000000000000000000008', txHash });
     assert.equal(funded.status, 200);
     assert.equal(funded.body.allocation.status, 'funded');
     assert.equal(funded.body.allocation.buyerWallet, '0x0000000000000000000000000000000000000008');
@@ -84,7 +104,7 @@ test('funds an allocation and records the purchase', () => {
     const purchases = listPurchases(db, '0x0000000000000000000000000000000000000008');
     assert.equal(purchases.status, 200);
     assert.equal(purchases.body.purchases.length, 1);
-    assert.equal(purchases.body.purchases[0].raiseId, raiseId);
+    assert.equal(purchases.body.purchases[0].pactId, pactId);
     assert.equal(purchases.body.purchases[0].allocationId, allocationId);
     assert.equal(purchases.body.purchases[0].txHash, txHash);
   });
@@ -92,28 +112,28 @@ test('funds an allocation and records the purchase', () => {
 
 test('funded allocations are immutable; unfunded ones can be deleted', () => {
   withDb(db => {
-    const created = createRaise(db, fixtureRaise());
-    const raiseId = created.body.id;
+    const created = createPact(db, fixturePact());
+    const pactId = created.body.id;
 
-    const funded = addAllocation(db, raiseId, { name: 'Buyer One', amountUsd: 1500 });
-    fundAllocation(db, raiseId, funded.body.allocation.id, { buyerWallet: '0x0000000000000000000000000000000000000008' });
-    const blocked = deleteAllocation(db, raiseId, funded.body.allocation.id);
+    const funded = addAllocation(db, pactId, { name: 'Buyer One', amountUsd: 1500 });
+    fundAllocation(db, pactId, funded.body.allocation.id, { buyerWallet: '0x0000000000000000000000000000000000000008' });
+    const blocked = deleteAllocation(db, pactId, funded.body.allocation.id);
     assert.equal(blocked.status, 409);
 
-    const pending = addAllocation(db, raiseId, { name: 'Buyer Two', amountUsd: 500 });
-    const deleted = deleteAllocation(db, raiseId, pending.body.allocation.id);
+    const pending = addAllocation(db, pactId, { name: 'Buyer Two', amountUsd: 500 });
+    const deleted = deleteAllocation(db, pactId, pending.body.allocation.id);
     assert.equal(deleted.status, 200);
-    assert.equal(deleted.body.raise.allocations.some(a => a.id === pending.body.allocation.id), false);
-    assert.equal(deleted.body.raise.allocations.some(a => a.id === funded.body.allocation.id), true);
+    assert.equal(deleted.body.pact.allocations.some(a => a.id === pending.body.allocation.id), false);
+    assert.equal(deleted.body.pact.allocations.some(a => a.id === funded.body.allocation.id), true);
   });
 });
 
-test('syncs offering contract state onto a raise', () => {
+test('syncs offering contract state onto a pact', () => {
   withDb(db => {
-    const input = fixtureRaise();
+    const input = fixturePact();
     input.chainId = 8453;
     input.offeringAddress = '0x0000000000000000000000000000000000001234';
-    const created = createRaise(db, input);
+    const created = createPact(db, input);
 
     const synced = syncOfferingState(db, created.body.id, {
       remainingUnits: 176,
@@ -126,22 +146,32 @@ test('syncs offering contract state onto a raise', () => {
 
     assert.equal(synced.status, 200);
     assert.equal(synced.body.onchainOffering.unitsSold, 24);
-    assert.equal(synced.body.onchainOffering.raisedUsdcBaseUnits, 81234);
+    assert.equal(synced.body.onchainOffering.raised, 81234);
     assert.equal(synced.body.onchainOffering.minMet, false);
 
-    const read = getRaise(db, created.body.id);
+    const read = getPact(db, created.body.id);
     assert.equal(read.body.onchainOffering.offeringAddress, input.offeringAddress);
     assert.equal(read.body.onchainOffering.remainingUnits, 176);
   });
 });
 
-test('syncs cap table state onto a raise', () => {
+test('rejects incomplete offering state', () => {
   withDb(db => {
-    const input = fixtureRaise();
+    const input = fixturePact();
+    input.offeringAddress = '0x0000000000000000000000000000000000001234';
+    const created = createPact(db, input);
+
+    const synced = syncOfferingState(db, created.body.id, { remainingUnits: 176 });
+    assert.equal(synced.status, 400);
+  });
+});
+
+test('syncs cap table state onto a pact', () => {
+  withDb(db => {
+    const input = fixturePact();
     input.chainId = 8453;
     input.liquidSplitAddress = '0x0000000000000000000000000000000000001234';
-    input.bondingCurveAddress = '0x0000000000000000000000000000000000007777';
-    const created = createRaise(db, input);
+    const created = createPact(db, input);
 
     const synced = syncCapTableState(db, created.body.id, {
       chainId: 8453,
@@ -156,51 +186,40 @@ test('syncs cap table state onto a raise', () => {
     assert.equal(synced.body.onchainCapTable.holders.length, 2);
     assert.equal(synced.body.onchainCapTable.source, 'splits-explorer');
 
-    const read = getRaise(db, created.body.id);
+    const read = getPact(db, created.body.id);
     assert.equal(read.body.onchainCapTable.liquidSplitAddress, input.liquidSplitAddress);
     assert.equal(read.body.onchainCapTable.holders[1].balance, 200);
   });
 });
 
-test('lists raises for issuer, treasury, and collaborator wallets', () => {
+test('lists pacts for issuer and treasury wallets', () => {
   withDb(db => {
-    const first = createRaise(db, fixtureRaise());
-    const other = fixtureRaise();
+    const first = createPact(db, fixturePact());
+    const other = fixturePact();
     other.projectName = 'Other Issuer';
     other.issuerWallet = '0x0000000000000000000000000000000000000007';
     other.proceedsAddress = '0x0000000000000000000000000000000000000008';
-    createRaise(db, other);
+    createPact(db, other);
 
-    const listed = listRaises(db, '0x0000000000000000000000000000000000000009');
+    const listed = listPacts(db, '0x0000000000000000000000000000000000000009');
     assert.equal(listed.status, 200);
-    assert.equal(listed.body.raises.length, 1);
-    assert.equal(listed.body.raises[0].id, first.body.id);
-    assert.equal(listed.body.raises[0].projectName, 'Test PACT');
+    assert.equal(listed.body.pacts.length, 1);
+    assert.equal(listed.body.pacts[0].id, first.body.id);
+    assert.equal(listed.body.pacts[0].projectName, 'Test PACT');
 
-    const treasuryListed = listRaises(db, '0x0000000000000000000000000000000000000001');
+    const treasuryListed = listPacts(db, '0x0000000000000000000000000000000000000001');
     assert.equal(treasuryListed.status, 200);
-    assert.equal(treasuryListed.body.raises.length, 1);
-    assert.equal(treasuryListed.body.raises[0].id, first.body.id);
-
-    const withCollaborator = fixtureRaise();
-    withCollaborator.projectName = 'Collaborator PACT';
-    withCollaborator.issuerWallet = '0x0000000000000000000000000000000000000005';
-    withCollaborator.proceedsAddress = '0x0000000000000000000000000000000000000004';
-    withCollaborator.collaborators = ['0x0000000000000000000000000000000000000006'];
-    const collaboratorRaise = createRaise(db, withCollaborator);
-    const collaboratorListed = listRaises(db, '0x0000000000000000000000000000000000000006');
-    assert.equal(collaboratorListed.status, 200);
-    assert.equal(collaboratorListed.body.raises.length, 1);
-    assert.equal(collaboratorListed.body.raises[0].id, collaboratorRaise.body.id);
+    assert.equal(treasuryListed.body.pacts.length, 1);
+    assert.equal(treasuryListed.body.pacts[0].id, first.body.id);
   });
 });
 
-test('rejects invalid raises and allocations', () => {
+test('rejects invalid pacts and allocations', () => {
   withDb(db => {
-    const badRaise = createRaise(db, {});
-    assert.equal(badRaise.status, 400);
+    const badPact = createPact(db, {});
+    assert.equal(badPact.status, 400);
 
-    const created = createRaise(db, fixtureRaise());
+    const created = createPact(db, fixturePact());
     const badAllocation = addAllocation(db, created.body.id, { name: '', amountUsd: 0 });
     assert.equal(badAllocation.status, 400);
   });
