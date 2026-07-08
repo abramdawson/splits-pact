@@ -165,7 +165,3 @@ See [Deployment](docs/deployment.md). The short version:
   contract remains the source of truth.
 - Lifecycle flows have been manually tested with dust, but still need broader
   real-world testing before public use.
-
-## License
-
-[MIT](LICENSE)
