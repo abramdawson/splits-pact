@@ -1,6 +1,7 @@
 // Small reusable UI primitives for React pages. Each maps onto the
 // design-system classes in src/app.css (.cta, .deflist, .notice, .act, ...)
 // so vanilla pages and React pages render identically.
+import React from 'react';
 import { basescanAddress, shortAddr } from '../lib/format.js';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
@@ -11,7 +12,7 @@ export const Loading = () => <span className="t-muted">Loading...</span>;
 export const Sub = ({ children }) => <span className="t-muted">{children}</span>;
 
 export function SectionTitle({ className, children }) {
-  return <div className={cx('font-bold mb-2', className)}>{children}</div>;
+  return <h2 className={cx('mt-0 text-lg font-bold mb-2', className)}>{children}</h2>;
 }
 
 export function DefList({ className, children }) {

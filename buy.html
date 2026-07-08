@@ -19,7 +19,7 @@
   })();
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config = { darkMode: 'class', theme: { extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
+<script>tailwind.config = { darkMode: 'class', theme: { fontSize: { xs: ['10px', { lineHeight: '14px' }], sm: ['12px', { lineHeight: '18px' }], base: ['14px', { lineHeight: '21px' }], lg: ['16px', { lineHeight: '24px' }], xl: ['18px', { lineHeight: '26px' }], '2xl': ['22px', { lineHeight: '30px' }], '3xl': ['26px', { lineHeight: '34px' }] }, extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:opsz,wght@6..72,200..800&display=swap" rel="stylesheet">
@@ -35,11 +35,11 @@
   .value-link:hover { color: var(--marker); text-decoration: underline; }
   .debug-menu { position: fixed; right: 16px; bottom: 16px; z-index: 30; display: none; }
   .debug-menu.show { display: block; }
-  .debug-toggle { height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-default); background: var(--ink); color: var(--paper); font-family: inherit; font-size: 12px; cursor: pointer; }
+  .debug-toggle { height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-default); background: var(--ink); color: var(--paper); font-family: inherit; font-size: var(--text-sm); cursor: pointer; }
   .debug-panel { position: absolute; right: 0; bottom: 40px; width: 190px; padding: 2px; border-radius: var(--radius-default); background: #202020; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.18); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 120ms ease, transform 120ms ease; }
   .debug-panel.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
-  .debug-label { padding: 6px 8px 4px; color: rgba(255,255,255,.55); font-size: 11px; font-weight: 500; }
-  .debug-panel button { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: var(--radius-small); padding: 5px 8px; background: transparent; color: #fff; font-family: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+  .debug-label { padding: 6px 8px 4px; color: rgba(255,255,255,.55); font-size: var(--text-xs); font-weight: 500; }
+  .debug-panel button { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: var(--radius-small); padding: 5px 8px; background: transparent; color: #fff; font-family: inherit; font-size: var(--text-sm); cursor: pointer; text-align: left; }
   .debug-panel button:hover { background: var(--marker); }
   .debug-check { width: 12px; height: 12px; opacity: 0; position: relative; }
   .debug-check::after { content: ''; position: absolute; left: 3px; top: 1px; width: 5px; height: 9px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); }
@@ -54,7 +54,7 @@
     </button>
   </div>
   <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
-    <div class="paper w-full max-w-xl px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]">
+    <div class="paper w-full max-w-xl px-10 py-12 sm:px-16 sm:py-16 text-base leading-[1.65]">
       <div id="app"></div>
     </div>
   </div>

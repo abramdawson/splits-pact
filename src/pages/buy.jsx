@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PactAPI } from '../lib/api.js';
 import { PactWallet } from '../lib/wallet.js';
@@ -9,11 +9,12 @@ import {
 } from '../lib/format.js';
 import { tokensBetween, offeringCurveParams, costForUnits, valuationForUnitIndex } from '../lib/curve.js';
 import { initDebugMenu, isLocalhost } from '../lib/debug-menu.js';
+import { currentAllocationRoute, redirectLegacyRoute } from '../lib/routes.js';
 import { getOfferingState, getOfferingPurchaseFromTx, buyOffering, refundOffering } from '../onchain.js';
 import { AddressLink, Button, DefList, Field, Loading, Notice, SectionTitle, Sub } from '../components/ui.jsx';
 
-const params = new URLSearchParams(location.search);
-const raiseId = params.get('r'), allocId = params.get('a');
+redirectLegacyRoute();
+const { raiseId, allocationId: allocId } = currentAllocationRoute();
 
 const fmtPct = v => (Math.round(v * 10) / 10).toFixed(1) + '%';
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : d === -1 ? '1 day ago' : Math.abs(d) + ' days ago'; };
@@ -86,7 +87,7 @@ function PageNotice({ title, children }) {
   return (
     <Notice>
       <div className="font-bold mb-1">{title}</div>
-      <div className="t-muted text-[13px]">{children}</div>
+      <div className="t-muted text-sm">{children}</div>
     </Notice>
   );
 }
@@ -314,7 +315,7 @@ function BuyApp() {
   } else if (isPaid && offeringFailed && refundableDeposit > 0) {
     action = (
       <div className="flex justify-end mt-10">
-        <Button className="px-6 py-3 text-[14px] font-semibold" data-act="refund" disabled={busy === 'refund'} onClick={handleRefund}>
+        <Button className="px-6 py-3 text-base font-semibold" data-act="refund" disabled={busy === 'refund'} onClick={handleRefund}>
           {debugPreview ? 'Debug preview only' : busy === 'refund' ? 'Refunding...' : `Claim ${fmtDollars(refundableDeposit)} refund`}
         </Button>
       </div>
@@ -326,16 +327,16 @@ function BuyApp() {
   } else if (!wallet) {
     action = (
       <>
-        <p className="text-[13px] t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(r.raise.min)} by {fmtDate(closeDate)}.</p>
+        <p className="text-sm t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(r.raise.min)} by {fmtDate(closeDate)}.</p>
         <Notice>Connect a wallet before purchasing this offering.</Notice>
       </>
     );
   } else {
     action = (
       <>
-        <p className="text-[13px] t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(r.raise.min)} by {fmtDate(closeDate)}.</p>
+        <p className="text-sm t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(r.raise.min)} by {fmtDate(closeDate)}.</p>
         <div className="flex justify-end">
-          <Button className="px-6 py-3 text-[14px] font-semibold" data-act="pay" disabled={busy === 'pay'} onClick={handlePay}>
+          <Button className="px-6 py-3 text-base font-semibold" data-act="pay" disabled={busy === 'pay'} onClick={handlePay}>
             {busy === 'pay' ? 'Purchasing...' : `Purchase ${r.projectName}`}
           </Button>
         </div>
@@ -346,8 +347,8 @@ function BuyApp() {
   return (
     <>
       <div className="mb-8">
-        <h1 className="text-lg font-bold">{r.projectName} | {a.name}</h1>
-        <p className="text-[13px] t-muted mt-1">This is a Purchase Agreement for Community Tokens (a &ldquo;PACT&rdquo;). You&rsquo;re buying community tokens that align holders with the project and carry no inherent value of their own.</p>
+        <h1 className="text-2xl font-bold">{r.projectName} | {a.name}</h1>
+        <p className="text-sm t-muted mt-1">This is a Purchase Agreement for Community Tokens (a &ldquo;PACT&rdquo;). You&rsquo;re buying community tokens that align holders with the project and carry no inherent value of their own.</p>
       </div>
 
       <SectionTitle>Offering details</SectionTitle>
@@ -364,7 +365,7 @@ function BuyApp() {
         </Field>
       </DefList>
 
-      {isPaid && offeringFailed ? <Notice className="mb-5 text-[13px]">{failedRefundCopy}</Notice> : null}
+      {isPaid && offeringFailed ? <Notice className="mb-5 text-sm">{failedRefundCopy}</Notice> : null}
 
       {!isPaid && !offeringFailed && !offeringClosed ? (
         <>

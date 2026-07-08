@@ -1,13 +1,17 @@
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { PactAPI } from '../lib/api.js';
+import { fmtDollars, fmtTokens, usdcBaseUnitsToDollars } from '../lib/format.js';
 import { PactSettings } from '../lib/settings.js';
 import { PactWallet } from '../lib/wallet.js';
+import { allocationPath, createPath, pactPath } from '../lib/routes.js';
 
-function HomeApp() {
+function Explainer() {
   return (
     <>
       <div className="mb-9">
-        <h1 className="text-xl font-bold">PACT</h1>
-        <p className="mt-1 text-[13px] t-muted">Purchase Agreement for Community Tokens</p>
+        <h1 className="text-2xl font-bold">PACT</h1>
+        <p className="mt-1 text-sm t-muted">Purchase Agreement for Community Tokens</p>
         <p className="mt-5">
           Run lightweight, early-stage financing rounds without needing to incorporate.
         </p>
@@ -46,12 +50,113 @@ function HomeApp() {
       </div>
 
       <div className="flex justify-end">
-        <a className="cta inline-flex items-center justify-center px-6 py-3 text-[14px] font-semibold" href="create.html">Create PACT</a>
+        <a className="cta inline-flex items-center justify-center px-6 py-3 text-base font-semibold" href={createPath()}>Create PACT</a>
       </div>
     </>
   );
 }
 
+function DashboardTable({ title, empty, children }) {
+  return (
+    <section className="mb-8">
+      <div className="font-bold mb-2">{title}</div>
+      {children || <p className="t-muted text-sm">{empty}</p>}
+    </section>
+  );
+}
+
+function Dashboard({ records }) {
+  const issuances = records.raises || [];
+  const purchases = records.purchases || [];
+  return (
+    <>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Your PACTs</h1>
+          <p className="mt-1 text-sm t-muted">Issuances and purchase receipts connected to this wallet.</p>
+        </div>
+        <a className="cta inline-flex items-center justify-center px-4 py-2 text-sm font-semibold whitespace-nowrap" href={createPath()}>Create PACT</a>
+      </div>
+
+      <DashboardTable title="Issuances" empty="No issuances yet.">
+        {issuances.length ? (
+          <table className="exhibit">
+            <thead><tr><th>Project</th><th className="num">Raised</th><th className="num">Target</th></tr></thead>
+            <tbody>
+              {issuances.map(raise => (
+                <tr key={raise.id}>
+                  <td><a className="linkbtn" href={pactPath(raise.id)}>{raise.projectName || 'Untitled issuance'}</a></td>
+                  <td className="num">{fmtDollars(raise.fundedTotal || 0)}</td>
+                  <td className="num">{fmtDollars(raise.raise && raise.raise.max || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </DashboardTable>
+
+      <DashboardTable title="Purchases" empty="No purchases yet.">
+        {purchases.length ? (
+          <table className="exhibit">
+            <thead><tr><th>Project</th><th className="num">Amount</th><th className="num">Tokens</th></tr></thead>
+            <tbody>
+              {purchases.map(purchase => (
+                <tr key={purchase.raiseId + ':' + purchase.allocationId}>
+                  <td><a className="linkbtn" href={allocationPath(purchase.raiseId, purchase.allocationId)}>{purchase.projectName || 'Untitled purchase'}</a></td>
+                  <td className="num">{fmtDollars(usdcBaseUnitsToDollars(purchase.purchaseCostUsdcBaseUnits) || purchase.amountUsd || 0)}</td>
+                  <td className="num">{fmtTokens(purchase.tokensPurchased || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </DashboardTable>
+    </>
+  );
+}
+
+function HomeApp() {
+  const [wallet, setWallet] = useState(null);
+  const [records, setRecords] = useState(null);
+
+  useEffect(() => {
+    PactWallet.init({
+      buttonId: 'walletToggle',
+      onChange: account => setWallet(account),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!wallet) {
+      setRecords(null);
+      return;
+    }
+    let cancelled = false;
+    setRecords({ status: 'loading' });
+    Promise.all([
+      PactAPI.listRaises(wallet).then(result => result.raises || []).catch(() => []),
+      PactAPI.listPurchases(wallet).then(result => result.purchases || []).catch(() => []),
+    ]).then(([raises, purchases]) => {
+      if (!cancelled) setRecords({ status: 'loaded', raises, purchases });
+    });
+    return () => { cancelled = true; };
+  }, [wallet]);
+
+  if (records && records.status === 'loading') {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold">Your PACTs</h1>
+        <p className="mt-3 t-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  if (records && records.status === 'loaded' && ((records.raises || []).length || (records.purchases || []).length)) {
+    return <Dashboard records={records} />;
+  }
+
+  return <Explainer />;
+}
+
 PactSettings.init({ buttonId: 'settingsToggle' });
-PactWallet.init({ buttonId: 'walletToggle' });
 createRoot(document.getElementById('app')).render(<HomeApp />);

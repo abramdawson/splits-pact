@@ -342,6 +342,8 @@ function syncOfferingState(db, raiseId, input = {}) {
   const withdrawn = parseNonnegativeInteger(input.withdrawn);
   const raiseMin = parseNonnegativeInteger(input.raiseMin);
   const closeDate = parseNonnegativeInteger(input.closeDate);
+  const priceStart = parseNonnegativeInteger(input.priceStart);
+  const priceSlope = parseNonnegativeInteger(input.priceSlope);
   const state = parseNonnegativeInteger(input.state);
   if (remainingUnits == null || unitsSold == null || raised == null || withdrawn == null || state == null || state > 2) {
     return { status: 400, body: { error: 'Valid offering state is required.' } };
@@ -358,6 +360,10 @@ function syncOfferingState(db, raiseId, input = {}) {
     closeDate: closeDate == null ? undefined : closeDate,
     owner: isAddress(input.owner) ? input.owner : undefined,
     treasury: isAddress(input.treasury) ? input.treasury : undefined,
+    liquidSplit: isAddress(input.liquidSplit) ? input.liquidSplit : undefined,
+    paymentToken: isAddress(input.paymentToken) ? input.paymentToken : undefined,
+    priceStart: priceStart == null ? undefined : priceStart,
+    priceSlope: priceSlope == null ? undefined : priceSlope,
     minMet: !!input.minMet,
     state,
   };
@@ -451,6 +457,26 @@ function createApp(options = {}) {
   });
 
   if (staticDir) {
+    app.get('/create', (req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.sendFile(path.join(staticDir, 'create.html'));
+    });
+
+    app.get(['/pacts', '/pacts/'], (req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.sendFile(path.join(staticDir, 'index.html'));
+    });
+
+    app.get('/pacts/:id', (req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.sendFile(path.join(staticDir, 'status.html'));
+    });
+
+    app.get('/pacts/:id/allocations/:allocationId', (req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.sendFile(path.join(staticDir, 'buy.html'));
+    });
+
     app.use(express.static(staticDir, {
       extensions: ['html'],
       setHeaders(res, filePath) {

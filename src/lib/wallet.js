@@ -1,5 +1,8 @@
 import { PactAPI } from './api.js';
 import { esc } from './format.js';
+import {
+  allocationPath, createPath, currentAllocationRoute, currentCreatePage, currentRaiseId, pactPath,
+} from './routes.js';
 
 const STORAGE_KEY = 'pact-wallet-disconnected';
 const PROVIDER_KEY = 'pact-wallet-provider-id';
@@ -84,21 +87,9 @@ function closeMenu() {
   if (menu) menu.classList.remove('show');
 }
 
-function currentPageIsNewIssuance() {
-  const path = location.pathname.split('/').pop();
-  return path === 'create.html';
-}
-
-function currentRaiseId() {
-  const path = location.pathname.split('/').pop();
-  return path === 'status.html' ? new URLSearchParams(location.search).get('id') : null;
-}
-
 function currentPurchaseKey() {
-  const path = location.pathname.split('/').pop();
-  if (path !== 'buy.html') return null;
-  const params = new URLSearchParams(location.search);
-  return params.get('r') + ':' + params.get('a');
+  const route = currentAllocationRoute();
+  return route.raiseId && route.allocationId ? route.raiseId + ':' + route.allocationId : null;
 }
 
 function renderIssuanceMenu() {
@@ -107,9 +98,9 @@ function renderIssuanceMenu() {
   const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
   const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
   const rows = issuances.length
-    ? issuances.map(raise => `<a href="status.html?id=${encodeURIComponent(raise.id)}"><span>${esc(raise.projectName) || 'Untitled issuance'}</span>${raise.id === activeRaiseId ? activeMark : inactiveMark}</a>`).join('')
+    ? issuances.map(raise => `<a href="${pactPath(raise.id)}"><span>${esc(raise.projectName) || 'Untitled issuance'}</span>${raise.id === activeRaiseId ? activeMark : inactiveMark}</a>`).join('')
     : '<div class="wallet-menu-note">No issuances yet</div>';
-  const newLink = currentPageIsNewIssuance() ? '' : '<a href="create.html" class="wallet-menu-action">+ New issuance</a>';
+  const newLink = currentCreatePage() ? '' : `<a href="${createPath()}" class="wallet-menu-action">+ New issuance</a>`;
   return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your issuances</div>${rows}${newLink}</div>`;
 }
 
@@ -121,7 +112,7 @@ function renderPurchaseMenu() {
   if (!purchases.length) return '';
   const rows = purchases.map(purchase => {
     const key = purchase.raiseId + ':' + purchase.allocationId;
-    return `<a href="buy.html?r=${encodeURIComponent(purchase.raiseId)}&a=${encodeURIComponent(purchase.allocationId)}"><span>${esc(purchase.projectName) || 'Untitled purchase'}</span>${key === activeKey ? activeMark : inactiveMark}</a>`;
+    return `<a href="${allocationPath(purchase.raiseId, purchase.allocationId)}"><span>${esc(purchase.projectName) || 'Untitled purchase'}</span>${key === activeKey ? activeMark : inactiveMark}</a>`;
   }).join('');
   return `<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div>${rows}</div>`;
 }

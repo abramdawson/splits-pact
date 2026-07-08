@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PactAPI } from '../lib/api.js';
 import { PactWallet } from '../lib/wallet.js';
@@ -9,6 +9,7 @@ import {
 } from '../lib/format.js';
 import { tokensBetween, offeringCurveParams, costForUnits, valuationForUnitIndex } from '../lib/curve.js';
 import { initDebugMenu, isLocalhost } from '../lib/debug-menu.js';
+import { allocationPath, createPath, currentRaiseId, redirectLegacyRoute } from '../lib/routes.js';
 import {
   getOfferingState, getLiquidSplitTokenBalance, getLiquidSplitHolders,
   withdrawOffering, closeAndWithdrawOffering, markOfferingFailed, refundAllOffering,
@@ -24,7 +25,8 @@ const fmtShort = ts => { const d = new Date(ts); return d.getDate() + '-' + d.to
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : ''; };
 const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/' + encodeURIComponent(address) + '/?chainId=8453';
 
-const raiseId = new URLSearchParams(location.search).get('id');
+redirectLegacyRoute();
+const raiseId = currentRaiseId();
 
 function accessWallets(r) {
   return [
@@ -203,7 +205,7 @@ function capTableHoldersFor(r, key, state) {
 }
 
 function buyLink(allocId) {
-  return new URL('buy.html?r=' + raiseId + '&a=' + allocId, location.href).href;
+  return new URL(allocationPath(raiseId, allocId), location.origin).href;
 }
 
 function toast(msg) {
@@ -253,7 +255,7 @@ function OfferingActions({ actions, busyAction, onAction }) {
   if (!actions.length) return null;
   return (
     <div className="offering-actions no-print">
-      <SectionTitle>Offering actions</SectionTitle>
+      <SectionTitle className="mt-10">Offering actions</SectionTitle>
       <div className="offering-action-group">
         {actions.map(action => {
           const busy = busyAction === action.action;
@@ -261,12 +263,12 @@ function OfferingActions({ actions, busyAction, onAction }) {
             <div className="offering-action-row" key={action.action}>
               <div className="offering-action-copy">
                 <div className="offering-action-label">{action.label}</div>
-                <div className="t-muted text-[13px]">{action.note}</div>
+                <div className="t-muted text-sm">{action.note}</div>
               </div>
               <span className="action-tip-wrap">
                 <Button
                   variant={action.warning ? 'warning' : (action.secondary ? 'secondary' : 'primary')}
-                  className="px-4 text-[13px] font-semibold"
+                  className="px-4 text-sm font-semibold"
                   data-offering-action={action.action}
                   disabled={action.disabled || busy}
                   onClick={() => onAction(action.action)}
@@ -294,7 +296,7 @@ function ProgressTrack({ segs, minPct, minTip, raisedNode, secondaryNodes, maxLa
         ))}
         <div className="minmark" style={{ left: minPct + '%' }}><div className="tip">{minTip}</div></div>
       </div>
-      <div className="flex justify-between items-baseline mt-2 text-[12px]">
+      <div className="flex justify-between items-baseline mt-2 text-sm">
         <div className="flex items-baseline gap-3">
           <span>{raisedNode}</span>
           {secondaryNodes}
@@ -340,7 +342,7 @@ function AllocationEntryRow({ onCancel, onAdd }) {
     <tr className="alloc-entry no-print">
       <td><input id="allocName" className="blank" placeholder="Buyer name" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" autoFocus value={name} onChange={e => { setName(e.target.value); }} /></td>
       <td className="num"><div className="flex items-center gap-1"><span className="t-muted">$</span><input id="allocAmount" className="blank text-right" inputMode="decimal" placeholder="0.00" autoComplete="off" value={amount} onChange={e => setAmount(formatAmount(e.target.value))} /></div></td>
-      <td><p id="allocError" className={`${error ? '' : 'hidden '}text-[12px] t-danger`}>{error}</p></td>
+      <td><p id="allocError" className={`${error ? '' : 'hidden '}text-sm t-danger`}>{error}</p></td>
       <td className="num whitespace-nowrap">
         <span className="alloc-actions">
           <TextButton tone="danger" data-act="cancel-add" onClick={onCancel}>Cancel</TextButton>
@@ -354,40 +356,43 @@ function AllocationEntryRow({ onCancel, onAdd }) {
 function AllocationsTable({ r, tokensById, entryOpen, onOpenEntry, onCancelEntry, onAdd, onDelete }) {
   const sorted = r.allocations.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   return (
-    <table className="exhibit alloc-table mt-10">
-      <thead><tr><th>Buyer</th><th className="num">Amount</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-        {sorted.length ? sorted.map(a => {
-          const funded = a.status === 'funded';
-          const tk = Number(a.tokensPurchased || tokensById[a.id] || 0);
-          const purchaseCost = Number(a.purchaseCostUsdcBaseUnits || 0) > 0 ? usdcBaseUnitsToDollars(a.purchaseCostUsdcBaseUnits) : Number(a.amountUsd || 0);
-          return (
-            <tr key={a.id}>
-              <td>{a.name}</td>
-              <td className="num">{funded ? fmtMoney(purchaseCost) : fmtMoney(a.amountUsd)}</td>
-              <td>
-                {funded
-                  ? <>Purchased <span className="tokencell">{fmtTokens(tk)} tokens<span className="tip2">{tk > 0 ? fmtTokenPrice(purchaseCost / tk) : '—'} / token</span></span> on {fmtShort(a.fundedAt || a.createdAt)}</>
-                  : <><span className="badge allocated">Allocated</span> <span>{fmtShort(a.createdAt)}</span></>}
-              </td>
-              <td className="num whitespace-nowrap">
-                <span className="alloc-actions">
+    <>
+      <SectionTitle className="mt-10">Allocations</SectionTitle>
+      <table className="exhibit alloc-table">
+        <thead><tr><th>Buyer</th><th className="num">Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {sorted.length ? sorted.map(a => {
+            const funded = a.status === 'funded';
+            const tk = Number(a.tokensPurchased || tokensById[a.id] || 0);
+            const purchaseCost = Number(a.purchaseCostUsdcBaseUnits || 0) > 0 ? usdcBaseUnitsToDollars(a.purchaseCostUsdcBaseUnits) : Number(a.amountUsd || 0);
+            return (
+              <tr key={a.id}>
+                <td>{a.name}</td>
+                <td className="num">{funded ? fmtMoney(purchaseCost) : fmtMoney(a.amountUsd)}</td>
+                <td>
                   {funded
-                    ? (a.txHash ? <AddressLink className="act muted" href={basescanTx(a.txHash)}>View txn</AddressLink> : null)
-                    : <TextButton tone="danger" data-act="del" data-id={a.id} onClick={() => onDelete(a)}>Delete</TextButton>}
-                  <TextButton tone="muted" data-act="copy" data-id={a.id} onClick={() => copy(buyLink(a.id))}>Copy link</TextButton>
-                </span>
-              </td>
-            </tr>
-          );
-        }) : (
-          <tr><td colSpan={4} className="px-2 py-5 text-center t-muted">No allocations yet. Create a private allocation using the row below.</td></tr>
-        )}
-        {entryOpen
-          ? <AllocationEntryRow onCancel={onCancelEntry} onAdd={onAdd} />
-          : <tr className="addrow no-print"><td colSpan={4}><button data-act="open-add" type="button" onClick={onOpenEntry}>+ New allocation</button></td></tr>}
-      </tbody>
-    </table>
+                    ? <>Purchased <span className="tokencell">{fmtTokens(tk)} tokens<span className="tip2">{tk > 0 ? fmtTokenPrice(purchaseCost / tk) : '—'} / token</span></span> on {fmtShort(a.fundedAt || a.createdAt)}</>
+                    : <><span className="badge allocated">Allocated</span> <span>{fmtShort(a.createdAt)}</span></>}
+                </td>
+                <td className="num whitespace-nowrap">
+                  <span className="alloc-actions">
+                    {funded
+                      ? (a.txHash ? <AddressLink className="act muted" href={basescanTx(a.txHash)}>View txn</AddressLink> : null)
+                      : <TextButton tone="danger" data-act="del" data-id={a.id} onClick={() => onDelete(a)}>Delete</TextButton>}
+                    <TextButton tone="muted" data-act="copy" data-id={a.id} onClick={() => copy(buyLink(a.id))}>Copy link</TextButton>
+                  </span>
+                </td>
+              </tr>
+            );
+          }) : (
+            <tr><td colSpan={4} className="px-2 py-5 text-center t-muted">No allocations yet. Create a private allocation using the row below.</td></tr>
+          )}
+          {entryOpen
+            ? <AllocationEntryRow onCancel={onCancelEntry} onAdd={onAdd} />
+            : <tr className="addrow no-print"><td colSpan={4}><button data-act="open-add" type="button" onClick={onOpenEntry}>+ New allocation</button></td></tr>}
+        </tbody>
+      </table>
+    </>
   );
 }
 
@@ -398,29 +403,19 @@ function CapTable({ r, capKey, capTableState, canManage }) {
   const buyerNamesByWallet = new Map((r.allocations || [])
     .filter(a => a.status === 'funded' && a.buyerWallet && a.name)
     .map(a => [String(a.buyerWallet).toLowerCase(), a.name]));
-  const loading = state && state.status === 'loading' && (!Array.isArray(state.holders) || !state.holders.length);
   const totalTokens = holders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
-  const hasCached = state && Array.isArray(state.holders) && state.holders.length;
   const note = !r.liquidSplitAddress
     ? 'Onchain cap table appears after Liquid Split deployment.'
-    : state && state.status === 'loading'
-      ? (hasCached ? 'Refreshing current Liquid Split holders. Showing cached balances.' : 'Reading current Liquid Split holders.')
-      : state && state.status === 'loaded' && state.source === 'rpc'
-        ? 'Splits Explorer was unavailable. Showing current balances from direct Base RPC.'
-        : state && state.status === 'error'
-          ? (hasCached ? 'Could not refresh current Liquid Split holders. Showing cached balances.' : 'Could not read current Liquid Split holders. Showing issuance targets.')
-        : '';
+    : '';
 
   return (
     <>
       <SectionTitle className="mt-10">Cap table</SectionTitle>
-      {note ? <p className="text-[12px] t-muted mb-2">{note}</p> : null}
+      {note ? <p className="text-sm t-muted mb-2">{note}</p> : null}
       <table className="exhibit mb-10">
         <thead><tr><th>Holder</th><th className="num">Tokens</th><th className="num">Ownership</th></tr></thead>
         <tbody>
-          {loading ? (
-            <tr><td colSpan={3} className="px-2 py-5 text-center t-muted">Loading current Liquid Split holders...</td></tr>
-          ) : !holders.length ? (
+          {!holders.length ? (
             <tr><td colSpan={3} className="px-2 py-5 text-center t-muted">No cap table entries yet.</td></tr>
           ) : holders.map(holder => {
             const address = holder.address;
@@ -442,12 +437,12 @@ function CapTable({ r, capKey, capTableState, canManage }) {
         <tfoot>
           <tr>
             <td>Total</td>
-            <td className="num">{loading ? '...' : fmtTokens(totalTokens)}</td>
-            <td className="num">{loading ? '...' : fmtPct(totalTokens / r.totalTokens * 100)}</td>
+            <td className="num">{fmtTokens(totalTokens)}</td>
+            <td className="num">{fmtPct(totalTokens / r.totalTokens * 100)}</td>
           </tr>
           <tr className="footnote">
             <td colSpan={3}>
-              Verify this cap table by viewing the split at {r.liquidSplitAddress
+              Verify this cap table by viewing the Split at {r.liquidSplitAddress
                 ? <AddressLink className="cap-link" address={r.liquidSplitAddress} href={splitsExplorerAccount(r.liquidSplitAddress)} />
                 : <span className="t-muted">Not deployed</span>}.
             </td>
@@ -480,10 +475,6 @@ function StatusApp() {
     const r = raiseRef.current;
     if (!r || !r.offeringAddress) return;
     const provider = PactWallet.provider;
-    if (!provider) {
-      setOffering({ status: 'wallet-required' });
-      return;
-    }
     setOffering({ status: 'loading' });
     try {
       const state = await getOfferingState({ offeringAddress: r.offeringAddress, provider });
@@ -655,8 +646,8 @@ function StatusApp() {
   if (!raise) {
     return (
       <>
-        <h1 className="text-lg font-bold">Raise not found</h1>
-        <p className="t-muted mt-3">No issuance matches this link. <a href="create.html" className="linkbtn">Create one</a>.</p>
+        <h1 className="text-2xl font-bold">Raise not found</h1>
+        <p className="t-muted mt-3">No issuance matches this link. <a href={createPath()} className="linkbtn">Create one</a>.</p>
       </>
     );
   }
@@ -700,7 +691,10 @@ function StatusApp() {
     return { label: 'Loading...', tone: 'loading', note: '' };
   })();
   const claimable = onchainOffering ? Math.max(0, raisedTotal - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits)) : 0;
-  const curve = offeringCurveParams(r);
+  const onchainCurve = onchainOffering && Number(onchainOffering.priceStart || 0) > 0
+    ? { priceStart: onchainOffering.priceStart, priceSlope: onchainOffering.priceSlope || 0 }
+    : null;
+  const curve = onchainCurve || (canManage ? offeringCurveParams(r) : null);
   const remainingUnits = onchainOffering ? Number(onchainOffering.remainingUnits || 0) : Math.max(0, offerTokens - purchased);
   const remainingCapacity = onchainOffering && curve ? usdcBaseUnitsToDollars(costForUnits(curve, Number(onchainOffering.unitsSold || 0), remainingUnits)) : Math.max(0, max - raisedTotal);
   const progressMax = onchainOffering && curve
@@ -741,41 +735,69 @@ function StatusApp() {
   const minPct = Math.min(100, min / progressMax * 100);
   const over = raisedTotal + m.allocatedTotal - progressMax; // committed beyond live capacity
   const capKey = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
+  const publicContractLoading = !canManage && (offeringLoading || !onchainOffering);
+  const publicCurveLoading = !canManage && (offeringLoading || !onchainCurve);
+  const displayedMinimum = onchainOffering && onchainOffering.raiseMinUsdcBaseUnits != null
+    ? usdcBaseUnitsToDollars(onchainOffering.raiseMinUsdcBaseUnits)
+    : min;
+  const publicTitleAddress = r.offeringAddress;
+  const publicTreasury = canManage ? r.proceedsAddress : (onchainOffering && onchainOffering.treasury);
+  const publicOwner = onchainOffering && onchainOffering.owner;
+  const showOwner = publicOwner && !isSameAddress(publicOwner, publicTreasury);
 
   return (
     <>
       <div className="mb-2 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-bold">{r.projectName}</h1>
-          <p className="text-[13px] t-muted mt-1">PACT &middot; {fmtMonthYear(r.createdAt)} offering</p>
+        <div className="w-full">
+          <h1 className="text-2xl font-bold">{canManage ? r.projectName : 'PACT offering'}</h1>
+          <p className="text-sm t-muted mt-1">
+            {canManage ? (
+              <>PACT &middot; {fmtMonthYear(r.createdAt)} offering</>
+            ) : publicTitleAddress ? (
+              <AddressLink address={publicTitleAddress} />
+            ) : (
+              'Onchain offering'
+            )}
+          </p>
+          {!canManage ? (
+            <Notice className="no-print mt-4 text-sm">Connect with the treasury or creator wallet to manage the offering.</Notice>
+          ) : null}
         </div>
       </div>
 
       <SectionTitle className="mt-8">Offering details</SectionTitle>
-      <DefList className="mb-7">
-        <Field label="Target raise" loading={offeringLoading}>
-          <span>Up to {fmtMoney(progressMax)}</span><Sub>{fmtDollars(min)} minimum</Sub>
+      <DefList>
+        <Field label="Target amount" loading={canManage ? offeringLoading : publicCurveLoading}>
+          <span>Up to {fmtMoney(progressMax)}</span><Sub>{fmtDollars(displayedMinimum)} minimum</Sub>
         </Field>
-        <Field label="Valuation range" loading={offeringLoading}>
+        <Field label="Valuation range" loading={canManage ? offeringLoading : publicCurveLoading}>
           <span>{fmtMoney(valStart)}–{fmtMoney(valEnd)} post-money</span>
         </Field>
-        <Field label="Close date">
+        <Field label="Close date" loading={publicContractLoading}>
           <span>{fmtDate(closeDate)}</span>{relDays(closeDate) ? <Sub>{relDays(closeDate)}</Sub> : null}
         </Field>
-        <Field label="Treasury" align="none">
-          {r.proceedsAddress ? <AddressLink address={r.proceedsAddress} /> : <span className="t-muted">Not set</span>}
+        <Field label="Treasury" align="none" loading={publicContractLoading}>
+          {publicTreasury ? <AddressLink address={publicTreasury} /> : <span className="t-muted">Not set</span>}
         </Field>
+        {showOwner ? (
+          <Field label="Owner" align="none" loading={publicContractLoading}>
+            <AddressLink address={publicOwner} />
+          </Field>
+        ) : null}
       </DefList>
 
-      <SectionTitle>Offering state</SectionTitle>
+      <SectionTitle className="mt-10">Offering state</SectionTitle>
       <DefList>
         <Field label="Status" align="center">
           <StatusBadge status={statusInfo} />
         </Field>
+        <Field label="Raised" loading={offeringLoading}>
+          <span>{fmtMoney(raisedTotal)}</span><Sub>{fmtMoney(claimable)} claimable</Sub>
+        </Field>
         <Field label="Available" loading={offeringLoading}>
           <span>{fmtPct(remainingUnits / r.totalTokens * 100)}</span><Sub>{fmtTokens(remainingUnits)} tokens</Sub>
         </Field>
-        <Field label="Valuation" loading={offeringLoading}>
+        <Field label="Valuation" loading={canManage ? offeringLoading : publicCurveLoading}>
           <span>{fmtMoney(valNow)} post-money</span><Sub>{fmtTokenPrice(valNow / r.totalTokens)} / token</Sub>
         </Field>
       </DefList>
@@ -815,7 +837,7 @@ function StatusApp() {
           />
         </>
       ) : (
-        <Notice className="no-print mt-10 mb-4">Connect with the issuer's treasury wallet to manage the offering.</Notice>
+        null
       )}
 
       <CapTable r={r} capKey={capKey} capTableState={capTable} canManage={canManage} />
