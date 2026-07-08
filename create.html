@@ -20,14 +20,14 @@
   })();
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config = { darkMode: 'class', theme: { extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
+<script>tailwind.config = { darkMode: 'class', theme: { fontSize: { xs: ['10px', { lineHeight: '14px' }], sm: ['12px', { lineHeight: '18px' }], base: ['14px', { lineHeight: '21px' }], lg: ['16px', { lineHeight: '24px' }], xl: ['18px', { lineHeight: '26px' }], '2xl': ['22px', { lineHeight: '30px' }], '3xl': ['26px', { lineHeight: '34px' }] }, extend: { fontWeight: { bold: '600' }, colors: { ok: 'var(--ok)', pending: 'var(--pending)', danger: 'var(--danger)' } } } };</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Newsreader:opsz,wght@6..72,200..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/src/app.css">
 <style>
   .disabled-tip-wrap { position: relative; display: inline-flex; }
-  .disabled-tip { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: 11px; line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; }
+  .disabled-tip { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: var(--text-xs); line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; }
   .disabled-tip-wrap:hover .disabled-tip { opacity: 1; }
   .disabled-tip:empty { display: none; }
   .curve-frame { border: 0; }
@@ -42,7 +42,7 @@
   </div>
 
   <div class="min-h-screen flex justify-center items-start pt-20 pb-12 px-4">
-    <div id="app" class="paper w-full max-w-[820px] px-10 py-12 sm:px-16 sm:py-16 text-[14px] leading-[1.65]"></div>
+    <div id="app" class="paper w-full max-w-[820px] px-10 py-12 sm:px-16 sm:py-16 text-base leading-[1.65]"></div>
   </div>
 
 <script type="module" src="/src/pages/create.jsx"></script>

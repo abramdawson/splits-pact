@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { PactAPI } from '../lib/api.js';
@@ -7,6 +7,9 @@ import { PactSettings } from '../lib/settings.js';
 import { drawCurve, attachCurveHover } from '../lib/chart.js';
 import { createOffering, LIQUID_SPLIT_FACTORY_ADDRESS } from '../onchain.js';
 import { Button } from '../components/ui.jsx';
+import { pactPath, redirectLegacyRoute } from '../lib/routes.js';
+
+redirectLegacyRoute();
 
 const TOTAL_SHARES = 1000;          // 0.1% = 1 token
 const isAddress = s => /^0x[a-fA-F0-9]{40}$/.test(String(s).trim());
@@ -364,7 +367,7 @@ function CreateApp() {
       data.bondingCurveAddress = deployment.offeringAddress;
       data.onchainStatus = 'deployed';
       const raise = await PactAPI.createRaise(data);
-      window.location.href = 'status.html?id=' + encodeURIComponent(raise.id);
+      window.location.href = pactPath(raise.id);
     } catch (err) {
       setFormError(err.message || 'Could not create issuance.');
       setBusy(false);
@@ -386,12 +389,12 @@ function CreateApp() {
   return (
     <>
       {/* Version */}
-      <div className="text-right text-[12px] font-bold mb-6">Version 1.0</div>
+      <div className="text-right text-sm font-bold mb-6">Version 1.0</div>
 
       {/* Title */}
       <div className="mb-9">
-        <h1 className="text-lg font-bold uppercase tracking-wide text-center">Purchase Agreement for Community Tokens</h1>
-        <p className="text-[13px] mt-4 uppercase text-justify">The Tokens issued pursuant to this instrument carry no inherent value and entitle their holders to nothing except as the Project&rsquo;s creator may expressly provide. They exist solely to align their holders with the Project, and it is for the creator to determine what, if anything, the Tokens are used for.</p>
+        <h1 className="text-2xl font-bold uppercase tracking-wide text-center">Purchase Agreement for Community Tokens</h1>
+        <p className="text-sm mt-4 uppercase text-justify">The Tokens issued pursuant to this instrument carry no inherent value and entitle their holders to nothing except as the Project&rsquo;s creator may expressly provide. They exist solely to align their holders with the Project, and it is for the creator to determine what, if anything, the Tokens are used for.</p>
       </div>
 
       {/* Recital */}
@@ -464,7 +467,7 @@ function CreateApp() {
           </tr>
         </tfoot>
       </table>
-      <p className="mt-3 text-[12px] leading-5 t-muted italic">
+      <p className="mt-3 text-sm leading-5 t-muted italic">
         Upon issuance, each holder shall receive their Tokens, as defined above. The Tokens allocated to the Offering shall be deposited into the bonding curve (the &ldquo;Curve&rdquo;) and sold along the Resulting Terms below.
       </p>
 
@@ -483,15 +486,15 @@ function CreateApp() {
         <div className="fig-frame curve-frame">
           <CurveChart curveState={d.curveState} forceLight={forceLightChart} themeTick={themeTick} />
         </div>
-        <figcaption className="text-[12px] leading-5 t-muted mt-2 italic">Post-money valuation as the round fills. Hover to explore effective price.</figcaption>
+        <figcaption className="text-sm leading-5 t-muted mt-2 italic">Post-money valuation as the round fills. Hover to explore effective price.</figcaption>
       </figure>
 
       {/* CTA */}
       <div className="mt-10" id="ctaRow">
-        <p id="formError" className={`${formError ? '' : 'hidden '}text-[13px] t-danger mb-3`}>{formError}</p>
+        <p id="formError" className={`${formError ? '' : 'hidden '}text-sm t-danger mb-3`}>{formError}</p>
         <div className="flex items-center justify-end space-x-4">
           <span className="disabled-tip-wrap">
-            <Button id="createBtn" className="py-3 px-8 text-[14px] font-semibold tracking-wide" disabled={disabled || busy} onClick={create}>
+            <Button id="createBtn" className="py-3 px-8 text-base font-semibold tracking-wide" disabled={disabled || busy} onClick={create}>
               {busy ? 'Creating offering...' : 'Sign and create issuance'}
             </Button>
             <span id="createTip" className="disabled-tip">{tip}</span>

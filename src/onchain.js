@@ -399,6 +399,10 @@ export async function getOfferingState(options) {
     { address: offeringAddress, abi: OFFERING_ABI, functionName: 'closeDate', args: [] },
     { address: offeringAddress, abi: OFFERING_ABI, functionName: 'owner', args: [] },
     { address: offeringAddress, abi: OFFERING_ABI, functionName: 'treasury', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'liquidSplit', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'paymentToken', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'priceStart', args: [] },
+    { address: offeringAddress, abi: OFFERING_ABI, functionName: 'priceSlope', args: [] },
   ];
   if (buyer) calls.push({ address: offeringAddress, abi: OFFERING_ABI, functionName: 'deposits', args: [buyer] });
   let values;
@@ -410,7 +414,10 @@ export async function getOfferingState(options) {
       values.push(await readContract({ ...call, rpcUrl: options && options.rpcUrl, provider: options && options.provider }));
     }
   }
-  const [remainingUnits, unitsSold, minMet, state, raised, withdrawn, raiseMin, closeDate, owner, treasury, deposit] = values;
+  const [
+    remainingUnits, unitsSold, minMet, state, raised, withdrawn, raiseMin, closeDate, owner, treasury,
+    liquidSplit, paymentToken, priceStart, priceSlope, deposit,
+  ] = values;
   const result = {
     remainingUnits: Number(remainingUnits),
     unitsSold: Number(unitsSold),
@@ -422,6 +429,10 @@ export async function getOfferingState(options) {
     closeDate: Number(closeDate),
     owner: getAddress(owner),
     treasury: getAddress(treasury),
+    liquidSplit: getAddress(liquidSplit),
+    paymentToken: getAddress(paymentToken),
+    priceStart: Number(priceStart),
+    priceSlope: Number(priceSlope),
   };
   if (buyer) result.deposit = Number(deposit);
   return result;
@@ -595,4 +606,3 @@ export async function buyOffering(options) {
     buyTxHash,
   };
 }
-

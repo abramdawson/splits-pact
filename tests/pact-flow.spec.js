@@ -204,7 +204,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   });
   const page = await issuer.newPage();
 
-  await page.goto('/create.html');
+  await page.goto('/create');
   await expect(page.locator('#createBtn')).toHaveText('Sign and create issuance');
   await expect(page.locator('#createBtn')).toBeDisabled();
 
@@ -235,7 +235,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(page.locator('#createBtn')).toHaveText('Sign and create issuance');
   await expect(page.locator('#createBtn')).toBeEnabled();
   await page.locator('#createBtn').click();
-  await expect(page).toHaveURL(/status\.html\?id=r/);
+  await expect(page).toHaveURL(/\/pacts\/r/);
   await expect(page.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
   await expect(page.locator('a[href*="basescan.org/address/0x0000000000000000000000000000000000000001"]')).toContainText('0x0000…0001');
   await expect(page.getByRole('term').filter({ hasText: 'Liquid Split' })).toHaveCount(0);
@@ -252,7 +252,7 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(capTable.locator('tfoot')).toContainText('Total');
   await expect(capTable.locator('tfoot')).toContainText('1,000');
   await expect(capTable.locator('tfoot')).toContainText('100.0%');
-  await expect(capTable.locator('tfoot')).toContainText('Verify this cap table by viewing the split');
+  await expect(capTable.locator('tfoot')).toContainText('Verify this cap table by viewing the Split');
   await expect(capTable.locator('tfoot a[href*="explorer.splits.org/accounts/"]')).toHaveAttribute('href', /explorer\.splits\.org\/accounts\/0x0000000000000000000000000000000000001234\/\?chainId=8453/i);
   expect(baseRpcCalls.some(call => call.method === 'eth_getLogs')).toBe(false);
   await expect(page.getByRole('term').filter({ hasText: 'Available' })).toBeVisible();
@@ -272,22 +272,33 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible();
   await page.getByRole('heading', { name: 'Cross Context PACT' }).click();
 
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Your PACTs' })).toBeVisible();
+  await expect(page.locator('a[href*="/pacts/"]', { hasText: 'Cross Context PACT' }).first()).toHaveAttribute('href', /\/pacts\/r/);
+  await page.goBack();
+
   await page.getByRole('button', { name: '+ New allocation' }).click();
   await page.locator('#allocName').fill('Buyer One');
   await page.locator('#allocAmount').fill('1,500');
   await page.getByRole('button', { name: 'Generate link' }).click();
   await expect(page.locator('[data-act="copy"]')).toBeVisible();
-  const copied = await page.evaluate(() => {
+  const links = await page.evaluate(() => {
     const id = document.querySelector('[data-act="copy"]').dataset.id;
-    const raiseId = new URLSearchParams(location.search).get('id');
-    return new URL('buy.html?r=' + raiseId + '&a=' + id, location.href).href;
+    const raiseId = location.pathname.split('/').filter(Boolean).at(-1);
+    return {
+      clean: new URL(location.pathname + '/allocations/' + id, location.href).href,
+      legacy: new URL('/buy.html?r=' + raiseId + '&a=' + id, location.href).href,
+    };
   });
+  const copied = links.clean;
+  expect(copied).toMatch(/\/pacts\/r.*\/allocations\/a/);
 
   const buyer = await browser.newContext();
   await installWallet(buyer, addr(8));
   await installBaseRpcMock(buyer, baseRpcCalls);
   const buyerPage = await buyer.newPage();
-  await buyerPage.goto(copied);
+  await buyerPage.goto(links.legacy);
+  await expect(buyerPage).toHaveURL(/\/pacts\/r.*\/allocations\/a/);
   await expect(buyerPage.getByRole('heading', { name: 'Cross Context PACT' })).toBeVisible();
   await expect(buyerPage.getByText('Allocation details')).toBeVisible();
   await expect(buyerPage.getByText('Connect a wallet before purchasing this offering.')).toBeVisible();
@@ -299,10 +310,16 @@ test('issuer can create a raise and buyer can purchase from another browser cont
   await buyerPage.locator('#walletToggle').click();
   await expect(buyerPage.locator('.wallet-menu')).toContainText('Your purchases');
   await expect(buyerPage.locator('.wallet-menu')).toContainText('Cross Context PACT');
-  await expect(buyerPage.locator('.wallet-menu a[href*="buy.html"]').first()).toHaveAttribute('href', /buy\.html\?r=r.*&a=a/);
+  await expect(buyerPage.locator('.wallet-menu a[href*="/pacts/"]').first()).toHaveAttribute('href', /\/pacts\/r.*\/allocations\/a/);
   await buyerPage.getByRole('heading', { name: 'Cross Context PACT' }).click();
-  await buyerPage.goto(copied.replace(/buy\.html\?r=([^&]+)&a=.*/, 'status.html?id=$1'));
-  await expect(buyerPage.getByText("Connect with the issuer's treasury wallet to manage the offering.")).toBeVisible();
+  await buyerPage.goto('/');
+  await expect(buyerPage.getByRole('heading', { name: 'Your PACTs' })).toBeVisible();
+  await expect(buyerPage.locator('a[href*="/pacts/"]', { hasText: 'Cross Context PACT' }).first()).toHaveAttribute('href', /\/pacts\/r.*\/allocations\/a/);
+  const legacyStatusUrl = await page.evaluate(() => '/status.html?id=' + location.pathname.split('/').filter(Boolean).at(-1));
+  await buyerPage.goto(legacyStatusUrl);
+  await expect(buyerPage).toHaveURL(/\/pacts\/r/);
+  await expect(buyerPage.getByRole('heading', { name: 'PACT offering' })).toBeVisible();
+  await expect(buyerPage.getByText('Connect with the treasury or creator wallet to manage the offering.')).toBeVisible();
   await expect(buyerPage.locator('.alloc-table')).toHaveCount(0);
 
   await page.reload();

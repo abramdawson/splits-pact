@@ -23,7 +23,7 @@ the browser code imports directly.
 
 ## Creation Flow
 
-`create.html` calls `OfferingFactory.createOffering(...)` through the connected
+`/create` calls `OfferingFactory.createOffering(...)` through the connected
 wallet. The factory:
 
 1. Deploys a per-issuance `Offering`.

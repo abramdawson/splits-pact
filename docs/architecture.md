@@ -19,15 +19,16 @@ and API routes.
 
 ## Browser Surfaces
 
-- `index.html` explains what PACT is and links into the issuance flow.
-- `create.html` creates an issuance. It validates form fields, previews the
+- `/` shows a connected-wallet dashboard when records exist; otherwise it
+  explains what PACT is and links into the issuance flow.
+- `/create` creates an issuance. It validates form fields, previews the
   capitalization/curve, connects a wallet, deploys the onchain offering, then
   saves the issuance through the API.
-- `status.html` is the issuer dashboard. It shows offering details/state,
+- `/pacts/:id` is the issuer dashboard. It shows offering details/state,
   lifecycle actions, allocation links, and the cap table.
-- `buy.html` is the buyer page. It quotes the allocation against current onchain
-  offering state, submits USDC approval if needed, calls `Offering.buy`, and
-  renders receipt/refund states.
+- `/pacts/:id/allocations/:allocationId` is the buyer page. It quotes the
+  allocation against current onchain offering state, submits USDC approval if
+  needed, calls `Offering.buy`, and renders receipt/refund states.
 
 Each page is a React app under `src/pages/`, mounted into its page's `#app`
 element and built on the shared primitives in `src/components/ui.jsx` (Button,
@@ -37,6 +38,8 @@ framework-free modules that live outside the React roots. Shared browser
 modules live under `src/`:
 
 - `src/lib/api.js` wraps local API calls.
+- `src/lib/routes.js` owns clean route construction and legacy `.html` URL
+  compatibility.
 - `src/lib/wallet.js` owns wallet connection, issuer/purchase dropdowns, and wallet state.
 - `src/lib/settings.js` owns the combined style switcher.
 - `src/lib/chart.js` renders the issuance creation curve chart.

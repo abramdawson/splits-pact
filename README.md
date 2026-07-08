@@ -8,10 +8,10 @@ The app currently targets Base mainnet and uses USDC for purchases.
 
 ## App Surfaces
 
-- `index.html` - short explainer for what PACT is and how it works.
-- `create.html` - issuer form for creating a PACT issuance and deploying the onchain offering.
-- `status.html` - issuer dashboard for allocations, offering state, lifecycle actions, and cap table.
-- `buy.html` - buyer-facing purchase and receipt page.
+- `/` - connected-wallet dashboard, or a short explainer for what PACT is and how it works.
+- `/create` - issuer form for creating a PACT issuance and deploying the onchain offering.
+- `/pacts/:id` - issuer dashboard for allocations, offering state, lifecycle actions, and cap table.
+- `/pacts/:id/allocations/:allocationId` - buyer-facing purchase and receipt page.
 - `src/pages/` + `src/lib/` - the ES modules behind each page (built with Vite).
 - `server.js` - single Node process serving the Vite build (`dist/`) plus `/api`.
 - `data/pact.sqlite` - local runtime database, ignored by git.
