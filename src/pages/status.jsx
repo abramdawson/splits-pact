@@ -1,121 +1,100 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import './status.css';
+import { injectChrome } from '../lib/chrome.js';
+import { showToast, copyText } from '../lib/toast.js';
 import { PactAPI } from '../lib/api.js';
-import { PactWallet } from '../lib/wallet.js';
 import { PactSettings } from '../lib/settings.js';
+import { PactWallet } from '../lib/wallet.js';
+import { useWallet } from '../lib/use-wallet.js';
+import { useOfferingState } from '../lib/use-offering-state.js';
+import { canAccessPact } from '../lib/access.js';
+import { BASE_CHAIN_ID } from '../lib/chain.js';
 import {
-  fmtMoney, fmtDollars, fmtTokens, fmtDate, usdcBaseUnitsToDollars,
+  fmtMoney, fmtDollars, fmtPct, fmtTokens, fmtDate, usdcBaseUnitsToDollars,
   shortAddr, basescanTx,
 } from '../lib/format.js';
 import { tokensBetween, offeringCurveParams, costForUnits, valuationForUnitIndex } from '../lib/curve.js';
 import { initDebugMenu, isLocalhost } from '../lib/debug-menu.js';
-import { allocationPath, createPath, currentRaiseId, redirectLegacyRoute } from '../lib/routes.js';
+import { allocationPath, createPath, currentPactId } from '../lib/routes.js';
 import {
-  getOfferingState, getLiquidSplitTokenBalance, getLiquidSplitHolders,
+  getLiquidSplitHolders,
   withdrawOffering, closeAndWithdrawOffering, markOfferingFailed, refundAllOffering,
-} from '../onchain.js';
+} from '../lib/onchain.js';
 import {
   AddressLink, Button, DefList, Field, Loading, Notice, SectionTitle, Sub, TextButton,
 } from '../components/ui.jsx';
 
-const fmtPct = n => Number(n || 0).toFixed(1) + '%';
 const fmtMonthYear = ts => new Date(ts).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 const fmtTokenPrice = p => '$' + p.toLocaleString('en-US', { minimumFractionDigits: p > 0 && p < 1 ? 4 : 2, maximumFractionDigits: p > 0 && p < 1 ? 4 : 2 });
 const fmtShort = ts => { const d = new Date(ts); return d.getDate() + '-' + d.toLocaleDateString('en-US', { month: 'short' }); };
 const relDays = ts => { const d = Math.ceil((ts - Date.now()) / 86400000); return d > 1 ? 'in ' + d + ' days' : d === 1 ? 'in 1 day' : d === 0 ? 'today' : ''; };
-const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/' + encodeURIComponent(address) + '/?chainId=8453';
+const splitsExplorerAccount = address => 'https://explorer.splits.org/accounts/' + encodeURIComponent(address) + '/?chainId=' + BASE_CHAIN_ID;
 
-redirectLegacyRoute();
-const raiseId = currentRaiseId();
-
-function accessWallets(r) {
-  return [
-    r && r.issuerWallet,
-    r && r.proceedsAddress,
-    ...((r && Array.isArray(r.collaborators)) ? r.collaborators : []),
-  ].filter(Boolean).map(wallet => String(wallet).toLowerCase());
-}
+const pactId = currentPactId();
 
 // tokens are only known once funded — price isn't fixed until a purchase executes,
 // since anyone funding ahead changes where these dollars land on the curve
-function tokenMath(r) {
-  const funded = r.allocations.filter(a => a.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0));
+function tokenMath(pact) {
+  const funded = pact.allocations.filter(a => a.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0));
   const tokensById = {};
   let cum = 0;
   funded.forEach(a => {
-    tokensById[a.id] = tokensBetween(r, cum, cum + a.amountUsd);
+    tokensById[a.id] = tokensBetween(pact, cum, cum + a.amountUsd);
     cum += a.amountUsd;
   });
-  const allocatedTotal = r.allocations.filter(a => a.status === 'allocated').reduce((s, a) => s + a.amountUsd, 0);
+  const allocatedTotal = pact.allocations.filter(a => a.status === 'allocated').reduce((s, a) => s + a.amountUsd, 0);
   return { tokensById, fundedTotal: cum, allocatedTotal };
 }
 
-function normalizeOfferingState(state) {
-  if (!state) return state;
-  const raised = state.raisedUsdcBaseUnits == null ? state.raised : state.raisedUsdcBaseUnits;
-  const withdrawn = state.withdrawnUsdcBaseUnits == null ? state.withdrawn : state.withdrawnUsdcBaseUnits;
-  return {
-    ...state,
-    raisedUsdcBaseUnits: Number(raised || 0),
-    withdrawnUsdcBaseUnits: Number(withdrawn || 0),
-  };
-}
+const capTableKey = pact => pact.id + ':' + pact.liquidSplitAddress + ':' + pact.offeringAddress;
 
-function cachedCapTableState(r) {
-  const cached = r && r.onchainCapTable;
+function cachedCapTableState(pact) {
+  const cached = pact && pact.onchainCapTable;
   if (!cached || !Array.isArray(cached.holders) || !cached.holders.length) return null;
-  if (String(cached.liquidSplitAddress || '').toLowerCase() !== String(r.liquidSplitAddress || '').toLowerCase()) return null;
-  if (cached.bondingCurveAddress && String(cached.bondingCurveAddress).toLowerCase() !== String(r.bondingCurveAddress || '').toLowerCase()) return null;
-  const curve = cached.holders.find(holder => String(holder.address || '').toLowerCase() === String(r.bondingCurveAddress || '').toLowerCase());
-  return {
-    key: r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress,
-    status: 'loaded',
-    source: cached.source || 'cache',
-    syncedAt: cached.syncedAt,
-    curveBalance: curve ? Number(curve.balance) : 0,
-    holders: cached.holders,
-  };
+  if (String(cached.liquidSplitAddress || '').toLowerCase() !== String(pact.liquidSplitAddress || '').toLowerCase()) return null;
+  return { key: capTableKey(pact), status: 'loaded', holders: cached.holders };
 }
 
 function debugActive(debugState) {
   return isLocalhost() && debugState !== 'live';
 }
 
-function debugOfferingSnapshot(r, live, debugState) {
+function debugOfferingSnapshot(pact, live, debugState) {
   if (!debugActive(debugState) || ['loading', 'error'].includes(debugState)) return live;
-  const offerTokens = Math.round(r.maxDilutionPct / 100 * r.totalTokens);
+  const offerTokens = Math.round(pact.maxDilutionPct / 100 * pact.totalTokens);
   const base = {
-    syncedAt: Date.now(),
-    offeringAddress: r.offeringAddress || '0x0000000000000000000000000000000000000000',
+    offeringAddress: pact.offeringAddress || '0x0000000000000000000000000000000000000000',
     remainingUnits: offerTokens,
     unitsSold: 0,
-    raisedUsdcBaseUnits: 0,
-    withdrawnUsdcBaseUnits: 0,
-    raiseMinUsdcBaseUnits: Math.round(r.raise.min * 1000000),
+    raised: 0,
+    withdrawn: 0,
+    raiseMin: Math.round(pact.raise.min * 1000000),
     closeDate: Math.floor((Date.now() + 7 * 86400000) / 1000),
-    owner: r.issuerWallet,
-    treasury: r.proceedsAddress,
+    owner: pact.issuerWallet,
+    treasury: pact.proceedsAddress,
     minMet: false,
     state: 0,
     ...(live || {}),
   };
-  const minBase = Math.round(r.raise.min * 1000000);
-  const securedBase = Math.max(minBase, Math.round(Math.min(r.raise.max, r.raise.min * 1.2) * 1000000));
+  const minBase = Math.round(pact.raise.min * 1000000);
+  const securedBase = Math.max(minBase, Math.round(Math.min(pact.raise.max, pact.raise.min * 1.2) * 1000000));
+  const quarterUnits = Math.max(1, Math.floor(offerTokens / 4));
   const halfUnits = Math.max(1, Math.floor(offerTokens / 2));
   if (debugState === 'funding') {
-    return { ...base, unitsSold: Math.max(1, Math.floor(offerTokens / 4)), remainingUnits: offerTokens - Math.max(1, Math.floor(offerTokens / 4)), raisedUsdcBaseUnits: Math.floor(minBase / 2), withdrawnUsdcBaseUnits: 0, minMet: false, state: 0 };
+    return { ...base, unitsSold: quarterUnits, remainingUnits: offerTokens - quarterUnits, raised: Math.floor(minBase / 2), withdrawn: 0, minMet: false, state: 0 };
   }
   if (debugState === 'secured') {
-    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raisedUsdcBaseUnits: securedBase, withdrawnUsdcBaseUnits: 0, minMet: true, state: 0 };
+    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raised: securedBase, withdrawn: 0, minMet: true, state: 0 };
   }
   if (debugState === 'withdrawn') {
-    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raisedUsdcBaseUnits: securedBase, withdrawnUsdcBaseUnits: securedBase, minMet: true, state: 0 };
+    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raised: securedBase, withdrawn: securedBase, minMet: true, state: 0 };
   }
   if (debugState === 'failed') {
-    return { ...base, unitsSold: Math.max(1, Math.floor(offerTokens / 4)), remainingUnits: offerTokens - Math.max(1, Math.floor(offerTokens / 4)), raisedUsdcBaseUnits: Math.floor(minBase / 2), withdrawnUsdcBaseUnits: 0, closeDate: Math.floor((Date.now() - 86400000) / 1000), minMet: false, state: 1 };
+    return { ...base, unitsSold: quarterUnits, remainingUnits: offerTokens - quarterUnits, raised: Math.floor(minBase / 2), withdrawn: 0, closeDate: Math.floor((Date.now() - 86400000) / 1000), minMet: false, state: 1 };
   }
   if (debugState === 'closed') {
-    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raisedUsdcBaseUnits: securedBase, withdrawnUsdcBaseUnits: securedBase, minMet: true, state: 2 };
+    return { ...base, unitsSold: halfUnits, remainingUnits: offerTokens - halfUnits, raised: securedBase, withdrawn: securedBase, minMet: true, state: 2 };
   }
   return live;
 }
@@ -132,15 +111,15 @@ function offeringStatus(onchainOffering, open, secured) {
   return { label: 'Funding', tone: 'funding', note: 'Minimum not yet reached' };
 }
 
-function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canManage, debugState) {
+function offeringActionsFor(pact, onchainOffering, connectedWallet, closeDate, canManage) {
   if (!onchainOffering || !connectedWallet) return [];
   if (onchainOffering.state === 2) return [];
   const ownerAddress = onchainOffering.owner || null;
   const isOwner = ownerAddress ? isSameAddress(connectedWallet, ownerAddress) : false;
-  const claimable = Math.max(0, usdcBaseUnitsToDollars(onchainOffering.raisedUsdcBaseUnits) - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits));
+  const claimable = Math.max(0, usdcBaseUnitsToDollars(onchainOffering.raised) - usdcBaseUnitsToDollars(onchainOffering.withdrawn));
   const pastClose = Date.now() > closeDate;
   const canTopUp = canManage && onchainOffering.state === 0 && (!pastClose || onchainOffering.minMet);
-  const refundableAllocations = (r.allocations || []).filter(a => a.status === 'funded' && a.buyerWallet);
+  const refundableAllocations = (pact.allocations || []).filter(a => a.status === 'funded' && a.buyerWallet);
   const refundBuyers = Array.from(new Set(refundableAllocations.map(a => String(a.buyerWallet).toLowerCase())));
   const refundTotal = refundableAllocations.reduce((sum, a) => {
     const baseUnits = Number(a.purchaseCostUsdcBaseUnits || 0);
@@ -155,7 +134,7 @@ function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canM
     actions.push({ action: 'withdraw', label: 'Withdraw proceeds', cta: `Withdraw ${fmtMoney(claimable)}`, note: 'Transfer raised funds to your treasury', disabled: withdrawDisabled, tooltip: withdrawTooltip });
   }
   if (canTopUp) {
-    actions.push({ action: 'top-up', label: 'Increase offering', cta: shortAddr(r.offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' });
+    actions.push({ action: 'top-up', label: 'Increase offering', cta: shortAddr(pact.offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' });
   }
   if (onchainOffering.state === 0 && !onchainOffering.minMet && pastClose) {
     actions.push({ action: 'mark-failed', label: 'Mark failed', cta: 'Mark failed', note: 'Enable refunds' });
@@ -178,51 +157,34 @@ function offeringActionsFor(r, onchainOffering, connectedWallet, closeDate, canM
   return actions;
 }
 
-function disabledContractReadActions(actions, tooltip, r) {
+function disabledContractReadActions(actions, tooltip, pact) {
   const disabled = actions.length ? actions : [
     { action: 'withdraw', label: 'Withdraw proceeds', cta: 'Withdraw', note: 'Transfer raised funds to your treasury' },
-    { action: 'top-up', label: 'Increase offering', cta: shortAddr(r.offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' },
+    { action: 'top-up', label: 'Increase offering', cta: shortAddr(pact.offeringAddress), note: 'Deposit more tokens into the offering', secondary: true, icon: 'copy' },
     { action: 'close', label: 'Close round', cta: 'Close round', note: 'Withdraw funds and return unsold tokens to treasury', warning: true },
   ];
   return disabled.map(action => ({ ...action, disabled: true, tooltip }));
 }
 
-function capTableHoldersFor(r, key, state) {
-  const bondingCurveAddress = String(r.bondingCurveAddress || '').toLowerCase();
-  const current = state && state.key === key ? state : null;
+function capTableHoldersFor(pact, capTable) {
+  const offeringAddress = String(pact.offeringAddress || '').toLowerCase();
+  const current = capTable && capTable.key === capTableKey(pact) ? capTable : null;
   const holders = current && Array.isArray(current.holders) && current.holders.length
     ? current.holders
     : [
-        ...(r.holders || []).map(h => ({ address: h.address, balance: h.tokens })),
-        ...(r.bondingCurveAddress && r.newMoney ? [{ address: r.bondingCurveAddress, balance: r.newMoney.tokens }] : []),
+        ...(pact.holders || []).map(h => ({ address: h.address, balance: h.tokens })),
+        ...(pact.offeringAddress && pact.newMoney ? [{ address: pact.offeringAddress, balance: pact.newMoney.tokens }] : []),
       ];
   return holders.slice().sort((a, b) => {
-    const ac = String(a.address || '').toLowerCase() === bondingCurveAddress ? 1 : 0;
-    const bc = String(b.address || '').toLowerCase() === bondingCurveAddress ? 1 : 0;
+    const ac = String(a.address || '').toLowerCase() === offeringAddress ? 1 : 0;
+    const bc = String(b.address || '').toLowerCase() === offeringAddress ? 1 : 0;
     if (ac !== bc) return ac - bc;
     return String(a.address || '').toLowerCase() > String(b.address || '').toLowerCase() ? 1 : -1;
   });
 }
 
-function buyLink(allocId) {
-  return new URL(allocationPath(raiseId, allocId), location.origin).href;
-}
-
-function toast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove('show'), 1600);
-}
-
-function copy(text, msg) {
-  navigator.clipboard.writeText(text).then(() => toast(msg || 'Copied')).catch(() => {
-    const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); toast(msg || 'Copied'); } catch (e) {}
-    ta.remove();
-  });
+function buyLink(allocationId) {
+  return new URL(allocationPath(pactId, allocationId), location.origin).href;
 }
 
 function StatusBadge({ status }) {
@@ -353,8 +315,8 @@ function AllocationEntryRow({ onCancel, onAdd }) {
   );
 }
 
-function AllocationsTable({ r, tokensById, entryOpen, onOpenEntry, onCancelEntry, onAdd, onDelete }) {
-  const sorted = r.allocations.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+function AllocationsTable({ pact, tokensById, entryOpen, onOpenEntry, onCancelEntry, onAdd, onDelete }) {
+  const sorted = pact.allocations.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   return (
     <>
       <SectionTitle className="mt-10">Allocations</SectionTitle>
@@ -379,7 +341,7 @@ function AllocationsTable({ r, tokensById, entryOpen, onOpenEntry, onCancelEntry
                     {funded
                       ? (a.txHash ? <AddressLink className="act muted" href={basescanTx(a.txHash)}>View txn</AddressLink> : null)
                       : <TextButton tone="danger" data-act="del" data-id={a.id} onClick={() => onDelete(a)}>Delete</TextButton>}
-                    <TextButton tone="muted" data-act="copy" data-id={a.id} onClick={() => copy(buyLink(a.id))}>Copy link</TextButton>
+                    <TextButton tone="muted" data-act="copy" data-id={a.id} onClick={() => copyText(buyLink(a.id))}>Copy link</TextButton>
                   </span>
                 </td>
               </tr>
@@ -396,15 +358,14 @@ function AllocationsTable({ r, tokensById, entryOpen, onOpenEntry, onCancelEntry
   );
 }
 
-function CapTable({ r, capKey, capTableState, canManage }) {
-  const state = capTableState && capTableState.key === capKey ? capTableState : null;
-  const holders = capTableHoldersFor(r, capKey, capTableState);
-  const bondingCurveAddress = String(r.bondingCurveAddress || '').toLowerCase();
-  const buyerNamesByWallet = new Map((r.allocations || [])
+function CapTable({ pact, capTable, canManage }) {
+  const holders = capTableHoldersFor(pact, capTable);
+  const offeringAddress = String(pact.offeringAddress || '').toLowerCase();
+  const buyerNamesByWallet = new Map((pact.allocations || [])
     .filter(a => a.status === 'funded' && a.buyerWallet && a.name)
     .map(a => [String(a.buyerWallet).toLowerCase(), a.name]));
   const totalTokens = holders.reduce((sum, holder) => sum + Number(holder.balance || 0), 0);
-  const note = !r.liquidSplitAddress
+  const note = !pact.liquidSplitAddress
     ? 'Onchain cap table appears after Liquid Split deployment.'
     : '';
 
@@ -420,16 +381,16 @@ function CapTable({ r, capKey, capTableState, canManage }) {
           ) : holders.map(holder => {
             const address = holder.address;
             const lower = String(address || '').toLowerCase();
-            const isCurve = lower === bondingCurveAddress;
+            const isCurve = lower === offeringAddress;
             const buyerName = canManage ? buyerNamesByWallet.get(lower) : null;
             return (
               <tr className={isCurve ? 'highlight' : undefined} key={address}>
                 <td>
                   {isCurve ? 'PACT offering: ' : (buyerName ? buyerName + ': ' : '')}
-                  <AddressLink className="cap-link" address={address} />
+                  <AddressLink className="value-link" address={address} />
                 </td>
                 <td className="num">{fmtTokens(holder.balance)}</td>
-                <td className="num">{fmtPct(holder.balance / r.totalTokens * 100)}</td>
+                <td className="num">{fmtPct(holder.balance / pact.totalTokens * 100)}</td>
               </tr>
             );
           })}
@@ -438,12 +399,12 @@ function CapTable({ r, capKey, capTableState, canManage }) {
           <tr>
             <td>Total</td>
             <td className="num">{fmtTokens(totalTokens)}</td>
-            <td className="num">{fmtPct(totalTokens / r.totalTokens * 100)}</td>
+            <td className="num">{fmtPct(totalTokens / pact.totalTokens * 100)}</td>
           </tr>
           <tr className="footnote">
             <td colSpan={3}>
-              Verify this cap table by viewing the Split at {r.liquidSplitAddress
-                ? <AddressLink className="cap-link" address={r.liquidSplitAddress} href={splitsExplorerAccount(r.liquidSplitAddress)} />
+              Verify this cap table by viewing the Split at {pact.liquidSplitAddress
+                ? <AddressLink className="value-link" address={pact.liquidSplitAddress} href={splitsExplorerAccount(pact.liquidSplitAddress)} />
                 : <span className="t-muted">Not deployed</span>}.
             </td>
           </tr>
@@ -455,116 +416,92 @@ function CapTable({ r, capKey, capTableState, canManage }) {
 
 function StatusApp() {
   // `undefined` = still fetching (render nothing), `null` = not found.
-  const [raise, setRaiseState] = useState(undefined);
-  const [offering, setOffering] = useState(null);
-  const [capTable, setCapTableState] = useState(null);
-  const [wallet, setWallet] = useState(null);
+  const [pact, setPact] = useState(undefined);
+  const [capTable, setCapTable] = useState(null);
   const [debugState, setDebugState] = useState('live');
   const [entryOpen, setEntryOpen] = useState(false);
   const [busyAction, setBusyAction] = useState(null);
-
-  // Async flows (wallet callbacks, chained refreshes) read the latest values via refs.
-  const raiseRef = useRef(undefined);
-  const capTableRef = useRef(null);
-  const walletRef = useRef(null);
   const debugRef = useRef('live');
-  const setRaise = r => { raiseRef.current = r; setRaiseState(r); };
-  const setCapTable = s => { capTableRef.current = s; setCapTableState(s); };
+  const lastSyncedRef = useRef('');
 
-  async function refreshOnchainOffering() {
-    const r = raiseRef.current;
-    if (!r || !r.offeringAddress) return;
-    const provider = PactWallet.provider;
-    setOffering({ status: 'loading' });
+  const wallet = useWallet();
+  const { offering, refresh: refreshOffering } = useOfferingState({
+    offeringAddress: pact && pact.offeringAddress,
+    onLoaded: state => persistOfferingSnapshot(state),
+  });
+
+  // Cache fresh contract reads server-side so the page has a snapshot to show
+  // before the next live read completes. Display state is never taken from
+  // these responses — the contract read is the source of truth.
+  async function persistOfferingSnapshot(state) {
+    const current = pact;
+    if (!current) return;
+    const key = JSON.stringify(state);
+    if (lastSyncedRef.current === key) return;
     try {
-      const state = await getOfferingState({ offeringAddress: r.offeringAddress, provider });
-      setOffering(normalizeOfferingState({ status: 'loaded', ...state }));
-      try {
-        const result = await PactAPI.syncOfferingState(r.id, state);
-        setRaise(result.raise);
-      } catch (syncErr) {
-        console.warn('Could not sync offering state', syncErr);
-      }
+      await PactAPI.syncOfferingState(current.id, state);
+      lastSyncedRef.current = key;
     } catch (err) {
-      setOffering({ status: 'error', error: err.message || 'Could not read onchain offering state.' });
+      console.warn('Could not sync offering state', err);
     }
   }
 
-  async function refreshOnchainCapTable() {
-    const r = raiseRef.current;
-    if (!r || !r.liquidSplitAddress || !r.bondingCurveAddress) return;
-    const key = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
-    const previous = capTableRef.current && capTableRef.current.key === key ? capTableRef.current : cachedCapTableState(r);
-    setCapTable({ ...(previous || {}), key, status: 'loading' });
+  async function persistCapTable(id, state) {
     try {
-      const result = await PactAPI.getLiquidSplitHolders(r.liquidSplitAddress, r.chainId || 8453);
-      const holders = result.holders || [];
-      const curve = holders.find(holder => String(holder.address || '').toLowerCase() === String(r.bondingCurveAddress || '').toLowerCase());
-      setCapTable({ key, status: 'loaded', source: result.source || 'splits-explorer', curveBalance: curve ? Number(curve.balance) : 0, holders });
-      await persistCapTableState(r.id, {
-        holders,
-        source: result.source || 'splits-explorer',
-        chainId: result.chainId || r.chainId || 8453,
-      });
-    } catch (explorerErr) {
-      try {
-        const rpcState = await readOnchainCapTableFromRpc(r, key);
-        setCapTable(rpcState);
-        await persistCapTableState(r.id, {
-          holders: rpcState.holders,
-          source: rpcState.source,
-          chainId: r.chainId || 8453,
-        });
-      } catch (rpcErr) {
-        setCapTable({
-          ...(previous || {}),
-          key,
-          status: 'error',
-          error: rpcErr.message || explorerErr.message || 'Could not read onchain cap table.',
-        });
-      }
-    }
-  }
-
-  async function readOnchainCapTableFromRpc(r, key) {
-    const provider = PactWallet.provider;
-    const [curveBalance, holders] = await Promise.all([
-      getLiquidSplitTokenBalance({
-        liquidSplitAddress: r.liquidSplitAddress,
-        account: r.bondingCurveAddress,
-        provider,
-      }),
-      getLiquidSplitHolders({
-        liquidSplitAddress: r.liquidSplitAddress,
-        deploymentTxHash: r.liquidSplitTxHash,
-        provider,
-      }),
-    ]);
-    return { key, status: 'loaded', curveBalance: Number(curveBalance), holders, source: 'rpc' };
-  }
-
-  async function persistCapTableState(id, state) {
-    try {
-      const synced = await PactAPI.syncCapTableState(id, state);
-      setRaise(synced.raise);
-      const cached = cachedCapTableState(synced.raise);
-      if (cached) setCapTable(cached);
+      await PactAPI.syncCapTableState(id, state);
     } catch (err) {
       console.warn('Could not cache cap table state', err);
     }
   }
 
+  async function refreshCapTable(current) {
+    if (!current || !current.liquidSplitAddress || !current.offeringAddress) return;
+    const key = capTableKey(current);
+    setCapTable(prev => ({ ...((prev && prev.key === key ? prev : cachedCapTableState(current)) || {}), key, status: 'loading' }));
+    try {
+      const result = await PactAPI.getLiquidSplitHolders(current.liquidSplitAddress, current.chainId || BASE_CHAIN_ID);
+      const holders = result.holders || [];
+      setCapTable({ key, status: 'loaded', holders });
+      await persistCapTable(current.id, {
+        holders,
+        source: result.source || 'splits-explorer',
+        chainId: result.chainId || current.chainId || BASE_CHAIN_ID,
+      });
+    } catch (explorerErr) {
+      try {
+        const holders = await getLiquidSplitHolders({
+          liquidSplitAddress: current.liquidSplitAddress,
+          deploymentTxHash: current.offeringTxHash,
+        });
+        setCapTable({ key, status: 'loaded', holders });
+        await persistCapTable(current.id, {
+          holders,
+          source: 'rpc',
+          chainId: current.chainId || BASE_CHAIN_ID,
+        });
+      } catch (rpcErr) {
+        setCapTable(prev => ({
+          ...((prev && prev.key === key && prev.holders ? prev : cachedCapTableState(current)) || {}),
+          key,
+          status: 'error',
+          error: rpcErr.message || explorerErr.message || 'Could not read onchain cap table.',
+        }));
+      }
+    }
+  }
+
   useEffect(() => {
-    PactWallet.init({
-      buttonId: 'walletToggle',
-      onChange: account => {
-        walletRef.current = account;
-        setWallet(account);
-        setOffering(null);
-        refreshOnchainOffering();
-      },
-    });
     initDebugMenu({
+      states: [
+        { value: 'live', label: 'Live' },
+        { value: 'loading', label: 'Loading' },
+        { value: 'error', label: 'Read failed' },
+        { value: 'funding', label: 'Funding' },
+        { value: 'secured', label: 'Secured' },
+        { value: 'withdrawn', label: 'Withdrawn' },
+        { value: 'failed', label: 'Failed' },
+        { value: 'closed', label: 'Closed' },
+      ],
       getState: () => debugRef.current,
       setState: state => {
         debugRef.current = state;
@@ -572,99 +509,108 @@ function StatusApp() {
       },
     });
     (async () => {
-      if (!raiseId) {
-        setRaise(null);
+      if (!pactId) {
+        setPact(null);
         return;
       }
-      let r = null;
+      let loaded = null;
       try {
-        r = await PactAPI.getRaise(raiseId);
+        loaded = await PactAPI.getPact(pactId);
       } catch (err) {}
-      setRaise(r);
-      setCapTable(cachedCapTableState(r));
-      setOffering(null);
-      await refreshOnchainOffering();
-      refreshOnchainCapTable();
+      setPact(loaded);
+      setCapTable(loaded ? cachedCapTableState(loaded) : null);
+      refreshCapTable(loaded);
     })();
   }, []);
 
-  async function handleOfferingAction(action) {
-    if (debugActive(debugRef.current)) {
-      toast('Debug preview only');
+  // The cap table shifts whenever units sell, so refresh it as sales land.
+  const soldUnits = offering && offering.status === 'loaded' ? offering.unitsSold : null;
+  const firstCapRefreshRef = useRef(true);
+  useEffect(() => {
+    if (soldUnits == null) return;
+    if (firstCapRefreshRef.current) {
+      firstCapRefreshRef.current = false;
       return;
     }
-    const r = raiseRef.current;
-    if (!r || !r.offeringAddress || !walletRef.current) return;
+    refreshCapTable(pact);
+  }, [soldUnits]);
+
+  async function handleOfferingAction(action) {
+    if (debugActive(debugState)) {
+      showToast('Debug preview only');
+      return;
+    }
+    if (!pact || !pact.offeringAddress || !wallet) return;
     if (action === 'top-up') {
-      copy(r.offeringAddress, 'Offering address copied');
+      copyText(pact.offeringAddress, 'Offering address copied');
       return;
     }
     if (action === 'close' && !confirm('Close this round? This withdraws funds, returns unsold tokens to treasury, and cannot be undone.')) return;
     setBusyAction(action);
     try {
+      const provider = PactWallet.provider;
       if (action === 'withdraw') {
-        await withdrawOffering({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: walletRef.current });
-        toast('Proceeds withdrawn to treasury');
+        await withdrawOffering({ provider, offeringAddress: pact.offeringAddress, from: wallet });
+        showToast('Proceeds withdrawn to treasury');
       } else if (action === 'close') {
-        await closeAndWithdrawOffering({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: walletRef.current });
-        toast('Round closed');
+        await closeAndWithdrawOffering({ provider, offeringAddress: pact.offeringAddress, from: wallet });
+        showToast('Round closed');
       } else if (action === 'mark-failed') {
-        await markOfferingFailed({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: walletRef.current });
-        toast('Offering marked failed');
+        await markOfferingFailed({ provider, offeringAddress: pact.offeringAddress, from: wallet });
+        showToast('Offering marked failed');
       } else if (action === 'refund-all') {
-        const buyers = Array.from(new Set((r.allocations || []).filter(a => a.status === 'funded' && a.buyerWallet).map(a => a.buyerWallet)));
-        await refundAllOffering({ provider: PactWallet.provider, offeringAddress: r.offeringAddress, from: walletRef.current, buyers });
-        toast('Refunds sent');
+        const buyers = Array.from(new Set((pact.allocations || []).filter(a => a.status === 'funded' && a.buyerWallet).map(a => a.buyerWallet)));
+        await refundAllOffering({ provider, offeringAddress: pact.offeringAddress, from: wallet, buyers });
+        showToast('Refunds sent');
       }
-      await refreshOnchainOffering();
-      refreshOnchainCapTable();
+      await refreshOffering();
+      refreshCapTable(pact);
     } catch (err) {
-      toast(err.message || 'Transaction failed');
+      showToast(err.message || 'Transaction failed');
     }
     setBusyAction(null);
   }
 
   async function handleAddAllocation(name, amount) {
-    const result = await PactAPI.addAllocation(raiseRef.current.id, { name, amountUsd: amount });
-    setRaise(result.raise);
+    const result = await PactAPI.addAllocation(pact.id, { name, amountUsd: amount });
+    setPact(result.pact);
     setEntryOpen(false);
-    copy(buyLink(result.allocation.id), 'Link copied — send it to ' + name);
+    copyText(buyLink(result.allocation.id), 'Link copied — send it to ' + name);
   }
 
   async function handleDeleteAllocation(a) {
     if (a.status === 'funded') return;
     if (!confirm('Delete the allocation for ' + a.name + '?')) return;
     try {
-      const result = await PactAPI.deleteAllocation(raiseRef.current.id, a.id);
-      setRaise(result.raise);
+      const result = await PactAPI.deleteAllocation(pact.id, a.id);
+      setPact(result.pact);
     } catch (err) {
-      toast(err.message || 'Could not delete allocation');
+      showToast(err.message || 'Could not delete allocation');
     }
   }
 
-  if (raise === undefined) return null;
-  if (!raise) {
+  if (pact === undefined) return null;
+  if (!pact) {
     return (
       <>
-        <h1 className="text-2xl font-bold">Raise not found</h1>
+        <h1 className="text-2xl font-bold">PACT not found</h1>
         <p className="t-muted mt-3">No issuance matches this link. <a href={createPath()} className="linkbtn">Create one</a>.</p>
       </>
     );
   }
 
-  const r = raise;
-  const m = tokenMath(r);
-  const canManage = !!wallet && accessWallets(r).includes(String(wallet).toLowerCase());
-  const max = r.raise.max, min = r.raise.min;
-  const offerTokens = r.maxDilutionPct / 100 * r.totalTokens;
-  const loadedOffering = offering && offering.status === 'loaded' ? normalizeOfferingState(offering) : null;
+  const m = tokenMath(pact);
+  const canManage = !!wallet && canAccessPact(pact, wallet);
+  const max = pact.raise.max, min = pact.raise.min;
+  const offerTokens = pact.maxDilutionPct / 100 * pact.totalTokens;
+  const loadedOffering = offering && offering.status === 'loaded' ? offering : null;
   const snapshot = loadedOffering || (() => {
-    const s = r.onchainOffering;
-    return s && s.offeringAddress && String(s.offeringAddress).toLowerCase() === String(r.offeringAddress || '').toLowerCase()
-      ? normalizeOfferingState(s)
+    const s = pact.onchainOffering;
+    return s && s.offeringAddress && String(s.offeringAddress).toLowerCase() === String(pact.offeringAddress || '').toLowerCase()
+      ? s
       : null;
   })();
-  const onchainOffering = debugOfferingSnapshot(r, snapshot, debugState);
+  const onchainOffering = debugOfferingSnapshot(pact, snapshot, debugState);
   const offeringReadFailed = !debugActive(debugState) && offering && offering.status === 'error';
   const debugReadFailed = debugState === 'error';
   const offeringLoading = (
@@ -672,9 +618,9 @@ function StatusApp() {
     !offering ||
     offering.status === 'loading'
   );
-  const raisedTotal = onchainOffering ? usdcBaseUnitsToDollars(onchainOffering.raisedUsdcBaseUnits) : m.fundedTotal;
-  const purchased = onchainOffering ? onchainOffering.unitsSold : tokensBetween(r, 0, m.fundedTotal);
-  const closeDate = onchainOffering && onchainOffering.closeDate ? onchainOffering.closeDate * 1000 : r.createdAt + r.minimum.deadlineDays * 86400000;
+  const raisedTotal = onchainOffering ? usdcBaseUnitsToDollars(onchainOffering.raised) : m.fundedTotal;
+  const purchased = onchainOffering ? onchainOffering.unitsSold : tokensBetween(pact, 0, m.fundedTotal);
+  const closeDate = onchainOffering && onchainOffering.closeDate ? onchainOffering.closeDate * 1000 : pact.createdAt + pact.minimum.deadlineDays * 86400000;
   const filled = raisedTotal >= max;
   const pastClose = Date.now() > closeDate;
   const open = onchainOffering ? onchainOffering.state === 0 && (!pastClose || onchainOffering.minMet) : !filled && !pastClose;
@@ -683,35 +629,32 @@ function StatusApp() {
   const localStatus = offeringStatus(onchainOffering, open, secured);
   const statusInfo = (() => {
     if (debugState === 'loading') return { label: 'Loading...', tone: 'loading', note: '' };
-    if (debugState === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Reconnect your wallet and refresh' };
+    if (debugState === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Refresh to retry' };
     if (onchainOffering) return localStatus;
-    if (offering && offering.status === 'loading') return { label: 'Loading...', tone: 'loading', note: '' };
-    if (offering && offering.status === 'wallet-required') return { label: 'Connect wallet', tone: 'funding', note: 'Contract read required' };
-    if (offering && offering.status === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Reconnect your wallet and refresh' };
+    if (offering && offering.status === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Refresh to retry' };
     return { label: 'Loading...', tone: 'loading', note: '' };
   })();
-  const claimable = onchainOffering ? Math.max(0, raisedTotal - usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits)) : 0;
+  const claimable = onchainOffering ? Math.max(0, raisedTotal - usdcBaseUnitsToDollars(onchainOffering.withdrawn)) : 0;
   const onchainCurve = onchainOffering && Number(onchainOffering.priceStart || 0) > 0
     ? { priceStart: onchainOffering.priceStart, priceSlope: onchainOffering.priceSlope || 0 }
     : null;
-  const curve = onchainCurve || (canManage ? offeringCurveParams(r) : null);
+  const curve = onchainCurve || (canManage ? offeringCurveParams(pact) : null);
   const remainingUnits = onchainOffering ? Number(onchainOffering.remainingUnits || 0) : Math.max(0, offerTokens - purchased);
   const remainingCapacity = onchainOffering && curve ? usdcBaseUnitsToDollars(costForUnits(curve, Number(onchainOffering.unitsSold || 0), remainingUnits)) : Math.max(0, max - raisedTotal);
   const progressMax = onchainOffering && curve
     ? Math.max(raisedTotal + remainingCapacity, min, raisedTotal, 0.000001)
     : Math.max(max, min, raisedTotal, 0.000001);
-  const soldUnits = onchainOffering ? Number(onchainOffering.unitsSold || 0) : purchased;
-  const valStart = curve ? valuationForUnitIndex(curve, 0, r.totalTokens) : r.valuation.floor;
-  const valNow = curve ? valuationForUnitIndex(curve, soldUnits, r.totalTokens) : r.valuation.floor;
-  const valEnd = curve ? valuationForUnitIndex(curve, soldUnits + remainingUnits, r.totalTokens) : r.valuation.ceiling;
-  const liveActionItems = onchainOffering ? offeringActionsFor(r, onchainOffering, wallet, closeDate, canManage, debugState) : [];
+  const valStart = curve ? valuationForUnitIndex(curve, 0, pact.totalTokens) : pact.valuation.floor;
+  const valNow = curve ? valuationForUnitIndex(curve, purchased, pact.totalTokens) : pact.valuation.floor;
+  const valEnd = curve ? valuationForUnitIndex(curve, purchased + remainingUnits, pact.totalTokens) : pact.valuation.ceiling;
+  const liveActionItems = onchainOffering ? offeringActionsFor(pact, onchainOffering, wallet, closeDate, canManage) : [];
   const actionItems = offeringLoading
-    ? disabledContractReadActions(liveActionItems, 'Reading contract state', r)
-    : (offeringReadFailed || debugReadFailed ? disabledContractReadActions(liveActionItems, 'Cannot read contract state', r) : liveActionItems);
+    ? disabledContractReadActions(liveActionItems, 'Reading contract state', pact)
+    : (offeringReadFailed || debugReadFailed ? disabledContractReadActions(liveActionItems, 'Cannot read contract state', pact) : liveActionItems);
 
   const ordered = [
-    ...r.allocations.filter(a => a.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0)),
-    ...r.allocations.filter(a => a.status === 'allocated').sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
+    ...pact.allocations.filter(a => a.status === 'funded').sort((a, b) => (a.fundedAt || 0) - (b.fundedAt || 0)),
+    ...pact.allocations.filter(a => a.status === 'allocated').sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
   ];
   let cum = 0;
   const segs = [];
@@ -734,14 +677,13 @@ function StatusApp() {
   }
   const minPct = Math.min(100, min / progressMax * 100);
   const over = raisedTotal + m.allocatedTotal - progressMax; // committed beyond live capacity
-  const capKey = r.id + ':' + r.liquidSplitAddress + ':' + r.bondingCurveAddress;
   const publicContractLoading = !canManage && (offeringLoading || !onchainOffering);
   const publicCurveLoading = !canManage && (offeringLoading || !onchainCurve);
-  const displayedMinimum = onchainOffering && onchainOffering.raiseMinUsdcBaseUnits != null
-    ? usdcBaseUnitsToDollars(onchainOffering.raiseMinUsdcBaseUnits)
+  const displayedMinimum = onchainOffering && onchainOffering.raiseMin != null
+    ? usdcBaseUnitsToDollars(onchainOffering.raiseMin)
     : min;
-  const publicTitleAddress = r.offeringAddress;
-  const publicTreasury = canManage ? r.proceedsAddress : (onchainOffering && onchainOffering.treasury);
+  const publicTitleAddress = pact.offeringAddress;
+  const publicTreasury = canManage ? pact.proceedsAddress : (onchainOffering && onchainOffering.treasury);
   const publicOwner = onchainOffering && onchainOffering.owner;
   const showOwner = publicOwner && !isSameAddress(publicOwner, publicTreasury);
 
@@ -749,10 +691,10 @@ function StatusApp() {
     <>
       <div className="mb-2 flex items-start justify-between gap-4">
         <div className="w-full">
-          <h1 className="text-2xl font-bold">{canManage ? r.projectName : 'PACT offering'}</h1>
+          <h1 className="text-2xl font-bold">{canManage ? pact.projectName : 'PACT offering'}</h1>
           <p className="text-sm t-muted mt-1">
             {canManage ? (
-              <>PACT &middot; {fmtMonthYear(r.createdAt)} offering</>
+              <>PACT &middot; {fmtMonthYear(pact.createdAt)} offering</>
             ) : publicTitleAddress ? (
               <AddressLink address={publicTitleAddress} />
             ) : (
@@ -760,7 +702,7 @@ function StatusApp() {
             )}
           </p>
           {!canManage ? (
-            <Notice className="no-print mt-4 text-sm">Connect with the treasury or creator wallet to manage the offering.</Notice>
+            <Notice className="no-print mt-4 text-sm t-muted">Connect with the treasury or creator wallet to manage the offering.</Notice>
           ) : null}
         </div>
       </div>
@@ -795,10 +737,10 @@ function StatusApp() {
           <span>{fmtMoney(raisedTotal)}</span><Sub>{fmtMoney(claimable)} claimable</Sub>
         </Field>
         <Field label="Available" loading={offeringLoading}>
-          <span>{fmtPct(remainingUnits / r.totalTokens * 100)}</span><Sub>{fmtTokens(remainingUnits)} tokens</Sub>
+          <span>{fmtPct(remainingUnits / pact.totalTokens * 100)}</span><Sub>{fmtTokens(remainingUnits)} tokens</Sub>
         </Field>
         <Field label="Valuation" loading={canManage ? offeringLoading : publicCurveLoading}>
-          <span>{fmtMoney(valNow)} post-money</span><Sub>{fmtTokenPrice(valNow / r.totalTokens)} / token</Sub>
+          <span>{fmtMoney(valNow)} post-money</span><Sub>{fmtTokenPrice(valNow / pact.totalTokens)} / token</Sub>
         </Field>
       </DefList>
 
@@ -816,7 +758,7 @@ function StatusApp() {
                 {onchainOffering ? (
                   <>
                     <Sub>{fmtMoney(claimable)} claimable</Sub>
-                    <Sub>{fmtMoney(usdcBaseUnitsToDollars(onchainOffering.withdrawnUsdcBaseUnits))} withdrawn</Sub>
+                    <Sub>{fmtMoney(usdcBaseUnitsToDollars(onchainOffering.withdrawn))} withdrawn</Sub>
                   </>
                 ) : null}
                 {m.allocatedTotal > 0 ? <Sub>{fmtMoney(m.allocatedTotal)} allocated</Sub> : null}
@@ -827,7 +769,7 @@ function StatusApp() {
           />
           <OfferingActions actions={actionItems} busyAction={busyAction} onAction={handleOfferingAction} />
           <AllocationsTable
-            r={r}
+            pact={pact}
             tokensById={m.tokensById}
             entryOpen={entryOpen}
             onOpenEntry={() => setEntryOpen(true)}
@@ -840,10 +782,11 @@ function StatusApp() {
         null
       )}
 
-      <CapTable r={r} capKey={capKey} capTableState={capTable} canManage={canManage} />
+      <CapTable pact={pact} capTable={capTable} canManage={canManage} />
     </>
   );
 }
 
+injectChrome();
 PactSettings.init({ buttonId: 'settingsToggle' });
 createRoot(document.getElementById('app')).render(<StatusApp />);

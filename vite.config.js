@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 const page = name => fileURLToPath(new URL(name, import.meta.url));
 
@@ -31,7 +32,7 @@ const pactApi = {
 
 export default defineConfig({
   appType: 'mpa',
-  plugins: [react(), pactApi],
+  plugins: [react(), tailwindcss(), pactApi],
   build: {
     rollupOptions: {
       input: {

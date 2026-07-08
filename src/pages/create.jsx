@@ -1,18 +1,21 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
+import './create.css';
+import { injectChrome } from '../lib/chrome.js';
 import { PactAPI } from '../lib/api.js';
 import { PactWallet } from '../lib/wallet.js';
 import { PactSettings } from '../lib/settings.js';
+import { useWallet } from '../lib/use-wallet.js';
 import { drawCurve, attachCurveHover } from '../lib/chart.js';
-import { createOffering, LIQUID_SPLIT_FACTORY_ADDRESS } from '../onchain.js';
+import { isAddress } from '../lib/validate.js';
+import { TOTAL_LIQUID_SPLIT_UNITS } from '../lib/liquid-split.js';
+import { createOffering } from '../lib/onchain.js';
 import { Button } from '../components/ui.jsx';
-import { pactPath, redirectLegacyRoute } from '../lib/routes.js';
+import { pactPath } from '../lib/routes.js';
+import { showToast } from '../lib/toast.js';
 
-redirectLegacyRoute();
-
-const TOTAL_SHARES = 1000;          // 0.1% = 1 token
-const isAddress = s => /^0x[a-fA-F0-9]{40}$/.test(String(s).trim());
+const TOTAL_SHARES = TOTAL_LIQUID_SPLIT_UNITS; // 0.1% = 1 token
 const fmtFull = v => '$' + Math.round(v).toLocaleString('en-US');
 const oneDecimal = v => (Math.round((Number(v) || 0) * 10) / 10).toFixed(1);
 const fmtPct = v => oneDecimal(v) + '%';
@@ -124,7 +127,7 @@ function formIsValid(form, holders, d) {
     && Math.abs(d.beforeSum - 100) <= 0.05;
 }
 
-function buildIssuance(form, holders, wallet) {
+function buildPact(form, holders, wallet) {
   const rmin = parseMoney(form.raiseMin);
   const rmax = parseMoney(form.raiseMax);
   const dilution = (+form.dilution || 0) / 100;
@@ -202,26 +205,18 @@ function CreateApp() {
     { id: 2, name: '', pct: '50.0' },
   ]);
   const [lastAddedId, setLastAddedId] = useState(null);
-  const [wallet, setWallet] = useState(null);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [forceLightChart, setForceLightChart] = useState(false);
   const [themeTick, setThemeTick] = useState(0);
-  const walletRef = useRef(null);
   const errTipRef = useRef(null);
+
+  const wallet = useWallet({ onError: err => showToast(err.message || 'Could not connect wallet.') });
+  useEffect(() => { setFormError(''); }, [wallet]);
 
   useEffect(() => {
     PactSettings.init({ buttonId: 'settingsToggle', onChange: () => setThemeTick(t => t + 1) });
-    PactWallet.init({
-      buttonId: 'walletToggle',
-      onChange: account => {
-        walletRef.current = account;
-        setWallet(account);
-        setFormError('');
-      },
-      onError: err => setFormError(err.message || 'Could not connect wallet.'),
-    });
 
     // floating error tooltip — shows a field's message on hover while it's in an error state
     const errTip = document.createElement('div');
@@ -348,26 +343,20 @@ function CreateApp() {
     }
     setBusy(true);
     try {
-      const data = buildIssuance(form, holders, walletRef.current);
+      const data = buildPact(form, holders, wallet);
       const deployment = await createOffering({
         provider: PactWallet.provider,
-        issuance: data,
-        owner: walletRef.current,
+        pact: data,
+        owner: wallet,
       });
       data.chainId = deployment.chainId;
-      data.offeringFactory = deployment.factoryAddress;
       data.offeringAddress = deployment.offeringAddress;
       data.offeringTxHash = deployment.transactionHash;
       data.paymentToken = deployment.paymentToken;
-      data.onchainCloseDate = deployment.closeDate;
       data.curveParams = deployment.curve;
-      data.liquidSplitFactory = LIQUID_SPLIT_FACTORY_ADDRESS;
       data.liquidSplitAddress = deployment.liquidSplitAddress;
-      data.liquidSplitTxHash = deployment.transactionHash;
-      data.bondingCurveAddress = deployment.offeringAddress;
-      data.onchainStatus = 'deployed';
-      const raise = await PactAPI.createRaise(data);
-      window.location.href = pactPath(raise.id);
+      const pact = await PactAPI.createPact(data);
+      window.location.href = pactPath(pact.id);
     } catch (err) {
       setFormError(err.message || 'Could not create issuance.');
       setBusy(false);
@@ -505,4 +494,5 @@ function CreateApp() {
   );
 }
 
+injectChrome();
 createRoot(document.getElementById('app')).render(<CreateApp />);

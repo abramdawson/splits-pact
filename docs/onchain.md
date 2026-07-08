@@ -52,8 +52,11 @@ The status and buy pages read:
 - `owner`
 - `treasury`
 
-The status page stores this snapshot locally as `onchainOffering` for cached
-display, but fresh contract reads should win when available.
+Reads go through the public Base RPC (batched with Multicall3 where
+available), so they work without a connected wallet and keep working if the
+wallet is pointed at another chain. The pages poll while visible, and the
+latest snapshot is cached locally as `onchainOffering` for faster first
+paint — fresh contract reads always win.
 
 ## Buying
 
@@ -102,4 +105,4 @@ npm run build:contracts
 ```
 
 This runs Foundry and exports ABI/bytecode into
-`src/generated/offering-contracts.js`, which `src/onchain.js` imports.
+`src/generated/offering-contracts.js`, which `src/lib/onchain.js` imports.

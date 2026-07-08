@@ -1,24 +1,34 @@
 # splits-pact
 
-PACT is a prototype for raising small rounds by selling a slice of a project's
-0xSplits Liquid Split tokens along a bonding curve. A minimum threshold makes the
-raise refundable if it is not met by the close date.
+PACT (Purchase Agreement for Community Tokens) is a prototype for raising
+small rounds by selling a slice of a project's
+[0xSplits Liquid Split](https://splits.org) tokens along a bonding curve. A
+minimum threshold makes the raise refundable if it is not met by the close
+date.
 
 The app currently targets Base mainnet and uses USDC for purchases.
 
+> **Status: prototype.** The contracts are unaudited and the lifecycle flows
+> have only been exercised with dust amounts on Base. Do not use this for
+> meaningful sums without your own review.
+
 ## App Surfaces
 
-- `/` - connected-wallet dashboard, or a short explainer for what PACT is and how it works.
-- `/create` - issuer form for creating a PACT issuance and deploying the onchain offering.
-- `/pacts/:id` - issuer dashboard for allocations, offering state, lifecycle actions, and cap table.
-- `/pacts/:id/allocations/:allocationId` - buyer-facing purchase and receipt page.
-- `src/pages/` + `src/lib/` - the ES modules behind each page (built with Vite).
-- `server.js` - single Node process serving the Vite build (`dist/`) plus `/api`.
-- `data/pact.sqlite` - local runtime database, ignored by git.
+- `/` — connected-wallet dashboard, or a short explainer for what PACT is and how it works.
+- `/create` — issuer form for creating a PACT and deploying the onchain offering.
+- `/pacts/:id` — issuer dashboard for allocations, offering state, lifecycle actions, and cap table.
+- `/pacts/:id/allocations/:allocationId` — buyer-facing purchase and receipt page.
+
+Under the hood:
+
+- `src/pages/` + `src/lib/` — the ES modules behind each page (built with Vite; styling is Tailwind v4 compiled at build time).
+- `server.js` + `server/` — single Node process serving the Vite build (`dist/`) plus `/api`.
+- `contracts/` — the `Offering` and `OfferingFactory` Solidity sources.
+- `data/pact.sqlite` — local runtime database, ignored by git.
 
 More detail:
 
-- [Architecture](docs/architecture.md)
+- [Architecture](docs/architecture.md) (includes a full repository layout map)
 - [Onchain Offering](docs/onchain.md)
 - [Deployment](docs/deployment.md)
 - [Testing](docs/testing.md)
@@ -89,9 +99,10 @@ Do not use `PACT_RESET_DB=1` in production unless intentionally clearing data.
 ## Onchain Configuration
 
 The browser code reads contract ABIs and the deployed OfferingFactory address
-from `src/generated/offering-contracts.js`.
+from `src/generated/offering-contracts.js`. All contract reads go through the
+public Base RPC; the connected wallet is only asked to switch chains and sign.
 
-Current Base OfferingFactory:
+Current Base OfferingFactory (unaudited — see status note above):
 
 ```text
 0x8bE9950470e0faC28Ed0fa590D972b466a6E0FE3
@@ -148,5 +159,9 @@ See [Deployment](docs/deployment.md). The short version:
 - Base mainnet only.
 - SQLite is the persistence layer; Fly deployment needs a persistent volume.
 - Allocation links are unauthenticated and rely on unguessable IDs.
-- Issuer/buyer authorization is wallet-address gated in the UI, not signature-authenticated.
-- Lifecycle flows have been manually tested with dust, but still need broader real-world testing before public use.
+- Issuer/buyer authorization is wallet-address gated in the UI, not
+  signature-authenticated, and the cached onchain snapshots (`offering-state`,
+  `cap-table-state`) are client-reported. Both are display conveniences; the
+  contract remains the source of truth.
+- Lifecycle flows have been manually tested with dust, but still need broader
+  real-world testing before public use.

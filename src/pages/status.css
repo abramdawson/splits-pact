@@ -1,0 +1,32 @@
+/* Status page: allocation table, offering actions, hover tips. */
+.alloc-actions { display: inline-flex; align-items: baseline; gap: 12px; }
+.alloc-entry .blank { width: 100%; }
+.alloc-entry td { height: 31px; }
+.exhibit tr.alloc-entry td { border-bottom: 1px solid var(--table-line); }
+.alloc-table { table-layout: fixed; }
+.alloc-table td:nth-child(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alloc-table th:nth-child(2), .alloc-table td:nth-child(2) { width: 100px; }
+.alloc-table th:nth-child(3), .alloc-table td:nth-child(3) { width: 300px; }
+.alloc-table th:nth-child(4), .alloc-table td:nth-child(4) { width: 140px; }
+
+.offering-actions { margin-top: 28px; }
+.offering-action-group { border: 1px solid var(--paper-border); border-radius: var(--radius-large); overflow: visible; }
+.offering-action-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 5px 8px 5px 10px; }
+.offering-action-row + .offering-action-row { border-top: 1px solid var(--paper-border); }
+.offering-action-copy { min-width: 0; }
+.offering-action-label { font-weight: 450; }
+.offering-action-row button { height: 34px; display: inline-flex; align-items: center; flex: 0 0 auto; }
+.offering-action-row button:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(1); }
+.offering-action-row .cta:disabled:hover { background: var(--cta-bg); }
+.offering-action-row .secondary-action:disabled:hover,
+.offering-action-row .warning-action:disabled:hover { background: var(--paper); }
+@media (max-width: 560px) {
+  .offering-action-row { align-items: flex-start; flex-direction: column; gap: 12px; }
+}
+
+.tokencell { position: relative; text-decoration: underline dotted; text-decoration-color: var(--muted); text-underline-offset: 3px; }
+.tokencell .tip2 { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: var(--text-xs); line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; text-decoration: none; }
+.tokencell:hover .tip2 { opacity: 1; }
+.action-tip-wrap { position: relative; display: inline-flex; flex: 0 0 auto; }
+.action-tip { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: var(--text-xs); line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; }
+.action-tip-wrap:hover .action-tip { opacity: 1; }

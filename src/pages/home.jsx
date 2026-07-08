@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import './home.css';
+import { injectChrome } from '../lib/chrome.js';
 import { PactAPI } from '../lib/api.js';
 import { fmtDollars, fmtTokens, usdcBaseUnitsToDollars } from '../lib/format.js';
 import { PactSettings } from '../lib/settings.js';
-import { PactWallet } from '../lib/wallet.js';
+import { useWallet } from '../lib/use-wallet.js';
 import { allocationPath, createPath, pactPath } from '../lib/routes.js';
 
 function Explainer() {
@@ -66,7 +68,7 @@ function DashboardTable({ title, empty, children }) {
 }
 
 function Dashboard({ records }) {
-  const issuances = records.raises || [];
+  const pacts = records.pacts || [];
   const purchases = records.purchases || [];
   return (
     <>
@@ -79,15 +81,15 @@ function Dashboard({ records }) {
       </div>
 
       <DashboardTable title="Issuances" empty="No issuances yet.">
-        {issuances.length ? (
+        {pacts.length ? (
           <table className="exhibit">
             <thead><tr><th>Project</th><th className="num">Raised</th><th className="num">Target</th></tr></thead>
             <tbody>
-              {issuances.map(raise => (
-                <tr key={raise.id}>
-                  <td><a className="linkbtn" href={pactPath(raise.id)}>{raise.projectName || 'Untitled issuance'}</a></td>
-                  <td className="num">{fmtDollars(raise.fundedTotal || 0)}</td>
-                  <td className="num">{fmtDollars(raise.raise && raise.raise.max || 0)}</td>
+              {pacts.map(pact => (
+                <tr key={pact.id}>
+                  <td><a className="linkbtn" href={pactPath(pact.id)}>{pact.projectName || 'Untitled issuance'}</a></td>
+                  <td className="num">{fmtDollars(pact.fundedTotal || 0)}</td>
+                  <td className="num">{fmtDollars(pact.raise && pact.raise.max || 0)}</td>
                 </tr>
               ))}
             </tbody>
@@ -101,8 +103,8 @@ function Dashboard({ records }) {
             <thead><tr><th>Project</th><th className="num">Amount</th><th className="num">Tokens</th></tr></thead>
             <tbody>
               {purchases.map(purchase => (
-                <tr key={purchase.raiseId + ':' + purchase.allocationId}>
-                  <td><a className="linkbtn" href={allocationPath(purchase.raiseId, purchase.allocationId)}>{purchase.projectName || 'Untitled purchase'}</a></td>
+                <tr key={purchase.pactId + ':' + purchase.allocationId}>
+                  <td><a className="linkbtn" href={allocationPath(purchase.pactId, purchase.allocationId)}>{purchase.projectName || 'Untitled purchase'}</a></td>
                   <td className="num">{fmtDollars(usdcBaseUnitsToDollars(purchase.purchaseCostUsdcBaseUnits) || purchase.amountUsd || 0)}</td>
                   <td className="num">{fmtTokens(purchase.tokensPurchased || 0)}</td>
                 </tr>
@@ -116,15 +118,8 @@ function Dashboard({ records }) {
 }
 
 function HomeApp() {
-  const [wallet, setWallet] = useState(null);
+  const wallet = useWallet();
   const [records, setRecords] = useState(null);
-
-  useEffect(() => {
-    PactWallet.init({
-      buttonId: 'walletToggle',
-      onChange: account => setWallet(account),
-    });
-  }, []);
 
   useEffect(() => {
     if (!wallet) {
@@ -134,10 +129,10 @@ function HomeApp() {
     let cancelled = false;
     setRecords({ status: 'loading' });
     Promise.all([
-      PactAPI.listRaises(wallet).then(result => result.raises || []).catch(() => []),
+      PactAPI.listPacts(wallet).then(result => result.pacts || []).catch(() => []),
       PactAPI.listPurchases(wallet).then(result => result.purchases || []).catch(() => []),
-    ]).then(([raises, purchases]) => {
-      if (!cancelled) setRecords({ status: 'loaded', raises, purchases });
+    ]).then(([pacts, purchases]) => {
+      if (!cancelled) setRecords({ status: 'loaded', pacts, purchases });
     });
     return () => { cancelled = true; };
   }, [wallet]);
@@ -151,12 +146,13 @@ function HomeApp() {
     );
   }
 
-  if (records && records.status === 'loaded' && ((records.raises || []).length || (records.purchases || []).length)) {
+  if (records && records.status === 'loaded' && ((records.pacts || []).length || (records.purchases || []).length)) {
     return <Dashboard records={records} />;
   }
 
   return <Explainer />;
 }
 
+injectChrome();
 PactSettings.init({ buttonId: 'settingsToggle' });
 createRoot(document.getElementById('app')).render(<HomeApp />);

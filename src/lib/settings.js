@@ -10,18 +10,6 @@ const STYLE_FONTS = {
   chambers: "'Newsreader', Georgia, serif",
 };
 
-function legacyStyle() {
-  let font = null;
-  let theme = null;
-  try {
-    font = localStorage.getItem('bc-font');
-    theme = localStorage.getItem('bc-theme');
-  } catch (e) {}
-  if (font === 'serif') return 'chambers';
-  if (theme === 'dark' || font === 'mono') return 'cipher';
-  return 'clarity';
-}
-
 function currentStyle() {
   return document.documentElement.getAttribute('data-style') || 'clarity';
 }
@@ -31,7 +19,7 @@ function applyStyle(style) {
   if (next === 'clarity') document.documentElement.removeAttribute('data-style');
   else document.documentElement.setAttribute('data-style', next);
   document.documentElement.classList.toggle('dark', next === 'cipher');
-  try { localStorage.setItem('bc-style', next); } catch (e) {}
+  try { localStorage.setItem('pact-style', next); } catch (e) {}
 }
 
 function row(value, active) {
@@ -44,9 +32,6 @@ function row(value, active) {
 function init(options) {
   const button = document.getElementById(options.buttonId);
   if (!button) return;
-  let storedStyle = null;
-  try { storedStyle = localStorage.getItem('bc-style'); } catch (e) {}
-  if (!storedStyle) applyStyle(legacyStyle());
   const menu = document.createElement('div');
   menu.className = 'settings-menu';
   menu.setAttribute('role', 'menu');

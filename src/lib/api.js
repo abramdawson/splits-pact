@@ -14,47 +14,47 @@ async function request(path, options) {
 }
 
 export const PactAPI = {
-  createRaise(data) {
-    return request('/api/raises', { method: 'POST', body: JSON.stringify(data) });
+  createPact(data) {
+    return request('/api/pacts', { method: 'POST', body: JSON.stringify(data) });
   },
-  getRaise(id) {
-    return request('/api/raises/' + encodeURIComponent(id));
+  getPact(id) {
+    return request('/api/pacts/' + encodeURIComponent(id));
   },
-  listRaises(issuerWallet) {
-    return request('/api/raises?issuerWallet=' + encodeURIComponent(issuerWallet));
+  listPacts(wallet) {
+    return request('/api/pacts?wallet=' + encodeURIComponent(wallet));
   },
-  listPurchases(buyerWallet) {
-    return request('/api/purchases?buyerWallet=' + encodeURIComponent(buyerWallet));
+  listPurchases(wallet) {
+    return request('/api/purchases?wallet=' + encodeURIComponent(wallet));
   },
   getLiquidSplitHolders(address, chainId) {
     const query = chainId ? '?chainId=' + encodeURIComponent(chainId) : '';
     return request('/api/liquid-splits/' + encodeURIComponent(address) + '/holders' + query);
   },
-  syncOfferingState(raiseId, state) {
-    return request('/api/raises/' + encodeURIComponent(raiseId) + '/offering-state', {
+  syncOfferingState(pactId, state) {
+    return request('/api/pacts/' + encodeURIComponent(pactId) + '/offering-state', {
       method: 'POST',
       body: JSON.stringify(state),
     });
   },
-  syncCapTableState(raiseId, state) {
-    return request('/api/raises/' + encodeURIComponent(raiseId) + '/cap-table-state', {
+  syncCapTableState(pactId, state) {
+    return request('/api/pacts/' + encodeURIComponent(pactId) + '/cap-table-state', {
       method: 'POST',
       body: JSON.stringify(state),
     });
   },
-  addAllocation(raiseId, allocation) {
-    return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations', {
+  addAllocation(pactId, allocation) {
+    return request('/api/pacts/' + encodeURIComponent(pactId) + '/allocations', {
       method: 'POST',
       body: JSON.stringify(allocation),
     });
   },
-  deleteAllocation(raiseId, allocationId) {
-    return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations/' + encodeURIComponent(allocationId), {
+  deleteAllocation(pactId, allocationId) {
+    return request('/api/pacts/' + encodeURIComponent(pactId) + '/allocations/' + encodeURIComponent(allocationId), {
       method: 'DELETE',
     });
   },
-  fundAllocation(raiseId, allocationId, buyerWallet, purchase = {}) {
-    return request('/api/raises/' + encodeURIComponent(raiseId) + '/allocations/' + encodeURIComponent(allocationId) + '/fund', {
+  fundAllocation(pactId, allocationId, buyerWallet, purchase = {}) {
+    return request('/api/pacts/' + encodeURIComponent(pactId) + '/allocations/' + encodeURIComponent(allocationId) + '/fund', {
       method: 'POST',
       body: JSON.stringify({ buyerWallet, ...purchase }),
     });
