@@ -1,16 +1,14 @@
 # splits-pact
 
 PACT (Purchase Agreement for Community Tokens) is a prototype for raising
-small rounds by selling a slice of a project's
-[0xSplits Liquid Split](https://splits.org) tokens along a bonding curve. A
+small rounds by creating a cap table and selling a slice of the project's tokens (ERC-1155) along a bonding curve. A
 minimum threshold makes the raise refundable if it is not met by the close
 date.
 
 The app currently targets Base mainnet and uses USDC for purchases.
 
 > **Status: prototype.** The contracts are unaudited and the lifecycle flows
-> have only been exercised with dust amounts on Base. Do not use this for
-> meaningful sums without your own review.
+> have only been exercised with small amounts. Use at your own risk and with caution.
 
 ## App Surfaces
 
