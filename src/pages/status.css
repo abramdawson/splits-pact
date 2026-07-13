@@ -24,7 +24,7 @@
   .offering-action-row { align-items: flex-start; flex-direction: column; gap: 12px; }
 }
 
-.tokencell { position: relative; text-decoration: underline dotted; text-decoration-color: var(--muted); text-underline-offset: 3px; }
+.tokencell { position: relative; text-decoration: underline dotted; text-decoration-color: var(--muted); text-underline-offset: 3px; font-variant-numeric: tabular-nums; }
 .tokencell .tip2 { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font-size: var(--text-xs); line-height: 1.4; padding: 4px 9px; opacity: 0; pointer-events: none; transition: opacity 120ms ease; z-index: 5; text-decoration: none; }
 .tokencell:hover .tip2 { opacity: 1; }
 .action-tip-wrap { position: relative; display: inline-flex; flex: 0 0 auto; }

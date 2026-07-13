@@ -312,7 +312,7 @@ function BuyApp() {
     action = (
       <div className="flex justify-end mt-10">
         <Button className="px-6 py-3 text-base font-semibold" data-act="refund" disabled={busy === 'refund'} onClick={handleRefund}>
-          {debugPreview ? 'Debug preview only' : busy === 'refund' ? 'Refunding...' : `Claim ${fmtDollars(refundableDeposit)} refund`}
+          {debugPreview ? 'Debug preview only' : busy === 'refund' ? 'Refunding…' : `Claim ${fmtDollars(refundableDeposit)} refund`}
         </Button>
       </div>
     );
@@ -333,7 +333,7 @@ function BuyApp() {
         <p className="text-sm t-muted mt-10 mb-3">Your purchase is refundable in full if the round does not reach its minimum of {fmtDollars(pact.raise.min)} by {fmtDate(closeDate)}.</p>
         <div className="flex justify-end">
           <Button className="px-6 py-3 text-base font-semibold" data-act="pay" disabled={busy === 'pay'} onClick={handlePay}>
-            {busy === 'pay' ? 'Purchasing...' : `Purchase ${pact.projectName}`}
+            {busy === 'pay' ? 'Purchasing…' : `Purchase ${pact.projectName}`}
           </Button>
         </div>
       </>
@@ -409,7 +409,7 @@ function BuyApp() {
             <Field label="Amount" align="none">{fmtDollars(purchaseCost)}</Field>
             <Field label="Ownership" align="none">
               {receiptState && receiptState.status === 'loading'
-                ? <span className="t-muted">Loading onchain ownership...</span>
+                ? <span className="t-muted">Loading onchain ownership…</span>
                 : <><span>{fmtPct(purchasedTokens / pact.totalTokens * 100)}</span><span className="t-muted ml-2">{fmtTokens(purchasedTokens)} tokens</span></>}
             </Field>
             <Field label="Price per token" align="none">{fmtPrice(pricePer)}</Field>

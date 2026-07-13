@@ -18,7 +18,7 @@ let pacts = null;
 let purchases = null;
 const providers = [];
 
-const short = address => address ? address.slice(0, 6) + '...' + address.slice(-4) : '';
+const short = address => address ? address.slice(0, 6) + '…' + address.slice(-4) : '';
 const provider = () => activeProvider || (providers[0] && providers[0].provider) || window.ethereum;
 const providerName = item => item && item.info && item.info.name ? item.info.name : 'Browser wallet';
 const selectedProviderId = () => localStorage.getItem(PROVIDER_KEY);
@@ -72,7 +72,7 @@ function render() {
     button.title = 'Connected wallet: ' + account;
     button.setAttribute('aria-label', 'Wallet ' + short(account));
   } else if (status === 'connecting') {
-    button.textContent = 'Connecting...';
+    button.textContent = 'Connecting…';
     button.classList.add('connecting');
     button.title = 'Waiting for wallet approval';
     button.setAttribute('aria-label', 'Connecting wallet');
@@ -98,7 +98,7 @@ function currentPurchaseKey() {
 }
 
 function renderPactMenu() {
-  if (!pacts) return '<div class="wallet-menu-note">Loading issuances...</div>';
+  if (!pacts) return '<div class="wallet-menu-note">Loading issuances…</div>';
   const activePactId = currentPactId();
   const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
   const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';
@@ -110,7 +110,7 @@ function renderPactMenu() {
 }
 
 function renderPurchaseMenu() {
-  if (!purchases) return '<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div><div class="wallet-menu-note">Loading purchases...</div></div>';
+  if (!purchases) return '<div class="wallet-menu-group"><div class="wallet-menu-label">Your purchases</div><div class="wallet-menu-note">Loading purchases…</div></div>';
   const activeKey = currentPurchaseKey();
   const activeMark = '<span class="wallet-menu-check active" aria-label="Selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>';
   const inactiveMark = '<span class="wallet-menu-check" aria-hidden="true"></span>';

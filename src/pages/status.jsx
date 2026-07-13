@@ -235,7 +235,7 @@ function OfferingActions({ actions, busyAction, onAction }) {
                   disabled={action.disabled || busy}
                   onClick={() => onAction(action.action)}
                 >
-                  {busy ? 'Confirming...' : <>{action.cta}{action.icon === 'copy' ? <CopyIcon /> : null}</>}
+                  {busy ? 'Confirming…' : <>{action.cta}{action.icon === 'copy' ? <CopyIcon /> : null}</>}
                 </Button>
                 {action.tooltip ? <span className="action-tip">{action.tooltip}</span> : null}
               </span>
@@ -258,7 +258,7 @@ function ProgressTrack({ segs, minPct, minTip, raisedNode, secondaryNodes, maxLa
         ))}
         <div className="minmark" style={{ left: minPct + '%' }}><div className="tip">{minTip}</div></div>
       </div>
-      <div className="flex justify-between items-baseline mt-2 text-sm">
+      <div className="flex justify-between items-baseline mt-2 text-sm tabular-nums">
         <div className="flex items-baseline gap-3">
           <span>{raisedNode}</span>
           {secondaryNodes}
@@ -628,11 +628,11 @@ function StatusApp() {
   const secured = onchainOffering ? onchainOffering.minMet : gap <= 0;
   const localStatus = offeringStatus(onchainOffering, open, secured);
   const statusInfo = (() => {
-    if (debugState === 'loading') return { label: 'Loading...', tone: 'loading', note: '' };
+    if (debugState === 'loading') return { label: 'Loading…', tone: 'loading', note: '' };
     if (debugState === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Refresh to retry' };
     if (onchainOffering) return localStatus;
     if (offering && offering.status === 'error') return { label: 'Contract read failed', tone: 'failed', note: 'Refresh to retry' };
-    return { label: 'Loading...', tone: 'loading', note: '' };
+    return { label: 'Loading…', tone: 'loading', note: '' };
   })();
   const claimable = onchainOffering ? Math.max(0, raisedTotal - usdcBaseUnitsToDollars(onchainOffering.withdrawn)) : 0;
   const onchainCurve = onchainOffering && Number(onchainOffering.priceStart || 0) > 0
@@ -751,7 +751,7 @@ function StatusApp() {
             minPct={minPct}
             minTip={`Minimum: ${fmtDollars(min)}`}
             raisedNode={offeringLoading
-              ? <span className="font-bold t-muted">Loading...</span>
+              ? <span className="font-bold t-muted">Loading…</span>
               : <><span className="font-bold">{fmtMoney(raisedTotal)}</span> raised</>}
             secondaryNodes={offeringLoading ? null : (
               <>

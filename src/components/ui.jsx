@@ -6,7 +6,7 @@ import { basescanAddress, shortAddr } from '../lib/format.js';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
-export const Loading = () => <span className="t-muted">Loading...</span>;
+export const Loading = () => <span className="t-muted">Loading…</span>;
 
 // Muted secondary text, usually paired with a primary value inside a Field.
 export const Sub = ({ children }) => <span className="t-muted">{children}</span>;

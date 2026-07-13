@@ -416,7 +416,7 @@ function CreateApp() {
       <p className="mb-9 text-justify">
         <span className="font-bold">&sect;2. Use of Proceeds.</span>
         {' '}The net proceeds of the Offering shall be delivered to the Project&rsquo;s treasury account (the &ldquo;Treasury&rdquo;) at{' '}
-        <input id="proceeds" className={'blank w-96 max-w-full text-left' + errProps('proceeds').className} data-error={errors.proceeds || undefined} type="text" placeholder="0x address..." autoComplete="off" value={form.proceeds} onChange={e => setField('proceeds', e.target.value)} onBlur={() => touch('proceeds')} />.
+        <input id="proceeds" className={'blank w-96 max-w-full text-left' + errProps('proceeds').className} data-error={errors.proceeds || undefined} type="text" placeholder="0x address…" autoComplete="off" value={form.proceeds} onChange={e => setField('proceeds', e.target.value)} onBlur={() => touch('proceeds')} />.
       </p>
 
       {/* Capitalization */}
@@ -428,7 +428,7 @@ function CreateApp() {
         <tbody id="holders">
           {d.rows.map(h => (
             <tr key={h.id}>
-              <td><input type="text" className={'blank w-full' + (errors['name-' + h.id] ? ' error' : '')} data-error={errors['name-' + h.id] || undefined} data-k="name" placeholder="0x address..." autoComplete="off" autoFocus={h.id === lastAddedId} value={h.name} onChange={e => setHolder(h.id, { name: e.target.value }, 'name-' + h.id)} onBlur={() => touchHolderName(h)} /></td>
+              <td><input type="text" className={'blank w-full' + (errors['name-' + h.id] ? ' error' : '')} data-error={errors['name-' + h.id] || undefined} data-k="name" placeholder="0x address…" autoComplete="off" autoFocus={h.id === lastAddedId} value={h.name} onChange={e => setHolder(h.id, { name: e.target.value }, 'name-' + h.id)} onBlur={() => touchHolderName(h)} /></td>
               <td className="num"><input type="text" inputMode="decimal" className={'blank w-12 text-right' + (errors['pct-' + h.id] ? ' error' : '')} data-error={errors['pct-' + h.id] || undefined} data-k="pct" autoComplete="off" value={h.pct} onChange={e => setHolder(h.id, { pct: clamp1(e.target.value) }, 'pct-' + h.id)} onBlur={e => { const v = oneDecimal(e.target.value); setHolder(h.id, { pct: v }, 'pct-' + h.id); touchHolderPct(h, v); }} />%</td>
               <td className="num">{fmtPct(h.after)}</td>
               <td className="num">{fmtShares(h.shares)}</td>
@@ -484,7 +484,7 @@ function CreateApp() {
         <div className="flex items-center justify-end space-x-4">
           <span className="disabled-tip-wrap">
             <Button id="createBtn" className="py-3 px-8 text-base font-semibold tracking-wide" disabled={disabled || busy} onClick={create}>
-              {busy ? 'Creating offering...' : 'Sign and create issuance'}
+              {busy ? 'Creating offering…' : 'Sign and create issuance'}
             </Button>
             <span id="createTip" className="disabled-tip">{tip}</span>
           </span>

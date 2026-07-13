@@ -34,8 +34,8 @@ function FaqSection() {
       <div className="space-y-5">
         {FAQS.map(({ q, a }) => (
           <div key={q}>
-            <p className="font-semibold">{q}</p>
-            <p className="mt-1 leading-[1.65]">{a}</p>
+            <p className="font-semibold text-balance">{q}</p>
+            <p className="mt-1 leading-[1.65] text-pretty">{a}</p>
           </div>
         ))}
       </div>
@@ -171,7 +171,7 @@ function HomeApp() {
     return (
       <div className={PAPER}>
         <h1 className="text-2xl font-bold">Your PACTs</h1>
-        <p className="mt-3 t-muted">Loading...</p>
+        <p className="mt-3 t-muted">Loading…</p>
       </div>
     );
   }
