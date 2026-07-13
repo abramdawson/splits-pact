@@ -8,52 +8,82 @@ import { PactSettings } from '../lib/settings.js';
 import { useWallet } from '../lib/use-wallet.js';
 import { allocationPath, createPath, pactPath } from '../lib/routes.js';
 
+const FAQS = [
+  {
+    q: 'How does this compare with a SAFE?',
+    a: 'A SAFE is legally defined and built for future equity in an incorporated company. A PACT is lighter and more composable: it is not welded to any particular organizational structure, so its units are simply a placeholder for whatever future value the project assigns — equity, tokens, revenue, or something else.',
+  },
+  {
+    q: 'Is this legally binding?',
+    a: 'No. A PACT is not a legal contract. Purchases, receipts, and refunds are enforced by a public smart contract, and everything beyond that relies on the issuer’s reputation and relationships rather than the legal system.',
+  },
+  {
+    q: 'Have the contracts been audited?',
+    a: 'No. The contracts are unaudited and this is a prototype — the lifecycle flows have only been exercised with small amounts. Use caution and do not commit meaningful sums without your own review.',
+  },
+];
+
+// Card styling previously carried by #app in index.html; the FAQ renders
+// outside it, so each view wraps its own content.
+const PAPER = 'paper px-10 py-12 sm:px-14 sm:py-16';
+
+function FaqSection() {
+  return (
+    <section className="mt-12 px-10 sm:px-14">
+      <h2 className="text-lg font-semibold mb-5">FAQ</h2>
+      <div className="space-y-5">
+        {FAQS.map(({ q, a }) => (
+          <div key={q}>
+            <p className="font-semibold">{q}</p>
+            <p className="mt-1 leading-[1.65]">{a}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Explainer() {
   return (
     <>
-      <div className="mb-9">
-        <h1 className="text-2xl font-bold">PACT</h1>
-        <p className="mt-1 text-sm t-muted">Purchase Agreement for Community Tokens</p>
-        <p className="mt-5">
-          Run lightweight, early-stage financing rounds without needing to incorporate.
-        </p>
+      <div className={PAPER}>
+        <div className="mb-9">
+          <h1 className="text-2xl font-bold">PACT</h1>
+          <p className="mt-1 text-sm t-muted">Purchase Agreement for Community Tokens</p>
+          <p className="mt-5">
+            Run lightweight, early-stage financing rounds without needing to incorporate.
+          </p>
+        </div>
+
+        <div className="mb-10">
+          <section className="overview-section">
+            <h2>Why</h2>
+            <p>
+              Incorporating, opening a bank account, and fundraising all depend on each other and require time, paperwork, and commitments that can be costly to unwind. Raising capital, however, does not need to be gated by legal structure. At the earliest stages, it runs more on relationships and reputation than on the legal system.
+            </p>
+          </section>
+          <section className="overview-section">
+            <h2>What</h2>
+            <p>
+              It works like a small, lightweight SAFE-style instrument, but lives onchain with public receipts and composable units upon which future equity, tokens, and revenue can be distributed.
+            </p>
+          </section>
+          <section className="overview-section">
+            <h2>How</h2>
+            <ol className="list-decimal">
+              <li>A private issuance is created with a cap table, target amount, post-money valuation, and close date. Upon issuance, cap table holders receive their tokens and the remaining tokens are placed in a bonding curve for buyers to purchase.</li>
+              <li>Buyer-specific allocation links are created by the issuer and sent to each buyer. As buyers purchase their allocations, they receive a pro-rata share of tokens in return.</li>
+              <li>If the round does not reach its minimum by the close date, buyers are refunded. If the minimum is met, the treasury can withdraw funds and close the round.</li>
+            </ol>
+          </section>
+        </div>
+
+        <div className="flex justify-end">
+          <a className="cta inline-flex items-center justify-center px-6 py-3 text-base font-semibold" href={createPath()}>Create PACT</a>
+        </div>
       </div>
 
-      <div className="mb-10">
-        <section className="overview-section">
-          <h2>Why</h2>
-          <p>
-            Incorporating, opening a bank account, and fundraising all depend on each other and require time, paperwork, and commitments that can be costly to unwind. Raising capital, however, does not need to be gated by legal structure. At the earliest stages, it runs more on relationships and reputation than on the legal system.
-          </p>
-        </section>
-        <section className="overview-section">
-          <h2>What</h2>
-          <p>
-            It works like a small, lightweight SAFE-style instrument, but lives onchain with public receipts and composable units upon which future equity, tokens, and revenue can be distributed.
-          </p>
-        </section>
-        <section className="overview-section">
-          <h2>Compared with a SAFE</h2>
-          <p>
-            A SAFE is familiar, legally defined, and built for future equity in an incorporated company. A PACT is lighter: it can happen before incorporation, creates public receipts, and gives supporters composable units that can map to whatever the project becomes.
-          </p>
-          <p className="mt-3">
-            The tradeoff is that a PACT leans more on relationships and reputation up front. The final legal, equity, token, or revenue structure still has to be defined later.
-          </p>
-        </section>
-        <section className="overview-section">
-          <h2>How</h2>
-          <ol className="list-decimal">
-            <li>A private issuance is created with a cap table, target amount, post-money valuation, and close date. Upon issuance, cap table holders receive their tokens and the remaining tokens are placed in a bonding curve for buyers to purchase.</li>
-            <li>Buyer-specific allocation links are created by the issuer and sent to each buyer. As buyers purchase their allocations, they receive a pro-rata share of tokens in return.</li>
-            <li>If the round does not reach its minimum by the close date, buyers are refunded. If the minimum is met, the treasury can withdraw funds and close the round.</li>
-          </ol>
-        </section>
-      </div>
-
-      <div className="flex justify-end">
-        <a className="cta inline-flex items-center justify-center px-6 py-3 text-base font-semibold" href={createPath()}>Create PACT</a>
-      </div>
+      <FaqSection />
     </>
   );
 }
@@ -71,7 +101,7 @@ function Dashboard({ records }) {
   const pacts = records.pacts || [];
   const purchases = records.purchases || [];
   return (
-    <>
+    <div className={PAPER}>
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Your PACTs</h1>
@@ -113,7 +143,7 @@ function Dashboard({ records }) {
           </table>
         ) : null}
       </DashboardTable>
-    </>
+    </div>
   );
 }
 
@@ -139,7 +169,7 @@ function HomeApp() {
 
   if (records && records.status === 'loading') {
     return (
-      <div>
+      <div className={PAPER}>
         <h1 className="text-2xl font-bold">Your PACTs</h1>
         <p className="mt-3 t-muted">Loading...</p>
       </div>
